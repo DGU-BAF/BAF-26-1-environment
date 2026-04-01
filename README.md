@@ -37,7 +37,7 @@ git push -u origin feature/본인이름
 #### 이후 작업물 올리기 (로컬 최신화 → 작업 → 푸시)
 
 ```bash
-# 1) main 브랜치 최신화
+# 1) (작업 시작 전!!) main 브랜치 최신화
 git checkout main
 git pull origin main
 
@@ -45,7 +45,7 @@ git pull origin main
 git checkout feature/본인이름
 git merge main
 
-# 3) 작업 후 커밋 & 푸시
+# 3) (작업 후!!!) 커밋 & 푸시
 git add .
 git commit -m "본인이름: 작업 내용 요약"
 git push origin feature/본인이름
@@ -76,7 +76,7 @@ df = pd.read_csv("C:/Users/본인이름/Desktop/waste_data.csv")
 git clone https://github.com/DGU-BAF/BAF-26-1-environment.git
 cd BAF-26-1-environment
 
-# 2) 필요한 패키지 설치
+# 2) 필요한 패키지 설치(추후 대시보드 실행 시 필요)
 pip install -r requirements.txt
 
 # 3) 대시보드 실행
