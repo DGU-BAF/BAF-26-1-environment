@@ -42,24 +42,6 @@ cd BAF-26-1-environment/apps/dashboard
 # 통합대시보드.html 을 브라우저로 열기
 ```
 
----
-
-## 실행 방법
-
-### 운영진용 (클론 → 실행)
-
-```bash
-# 1) 레포 클론
-git clone https://github.com/DGU-BAF/BAF-26-1-environment.git
-cd BAF-26-1-environment
-
-# 2) 필요한 패키지 설치(추후 대시보드 실행 시 필요)
-pip install -r requirements.txt
-
-# 3) 대시보드 실행
-#    apps/dashboard/통합대시보드.html 을 브라우저로 열기
-```
-
 
 ## 폴더 구조
 
