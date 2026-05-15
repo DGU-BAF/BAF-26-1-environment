@@ -1,0 +1,2867 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>서울시 자치구별 쓰레기 발생 구조 진단 대시보드</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700;900&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="data.js"></script>
+<script src="data_finance_burden2023.js"></script>
+<script src="facilities.js"></script>
+<script src="distance_matrix.js"></script>
+<style>
+:root{
+  --bg:#f4f2fa;--bg2:#ffffff;--bg3:#efebf7;--bg4:#e5dff2;
+  --border:rgba(124,58,237,0.08);--border2:rgba(124,58,237,0.16);
+  --text:#2a2440;--text2:#5e587a;--text3:#9189a8;
+  --teal:#10b981;--teal2:#059669;--teal-bg:rgba(16,185,129,0.12);
+  --amber:#fbbf24;--amber-bg:rgba(251,191,36,0.15);
+  --red:#f87171;--red-bg:rgba(248,113,113,0.12);
+  --blue:#818cf8;--blue-bg:rgba(129,140,248,0.12);
+  --purple:#a78bfa;--purple-bg:rgba(167,139,250,0.12);
+  --mono:'JetBrains Mono',monospace;--sans:'Noto Sans KR',sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15px;min-height:100vh;overflow-x:hidden}
+
+.header{display:flex;align-items:center;justify-content:space-between;padding:14px 24px;border-bottom:1px solid var(--border);background:var(--bg2);position:sticky;top:0;z-index:200}
+.logo{display:flex;align-items:center;gap:10px}
+.logo-mark{width:34px;height:34px;background:linear-gradient(135deg,var(--teal),var(--teal2));color:#fff;border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:16px}
+.logo-text{font-size:15px;font-weight:700}
+.logo-sub{font-size:10px;color:var(--text2);font-family:var(--mono);margin-top:1px}
+
+.tabs{display:flex;gap:6px;padding:14px 24px;border-bottom:1px solid var(--border);background:var(--bg2);overflow-x:auto;flex-wrap:nowrap}
+.tab{padding:10px 18px;border-radius:8px;cursor:pointer;font-size:12px;font-weight:500;color:var(--text2);transition:all .15s;border:1px solid transparent;white-space:nowrap;flex-shrink:0;display:flex;align-items:center;gap:8px}
+.tab:hover{color:var(--text);background:var(--bg3)}
+.tab.active{color:var(--teal);background:var(--teal-bg);border-color:rgba(0,153,117,.25)}
+.tab.active.amber-tab{color:var(--amber);background:var(--amber-bg);border-color:rgba(217,119,6,.25)}
+.tab.active.red-tab{color:var(--red);background:var(--red-bg);border-color:rgba(220,38,38,.25)}
+.tab-num{font-family:var(--mono);font-size:10px;opacity:.6;font-weight:600;letter-spacing:.05em}
+.tab-label{font-size:14px;font-weight:700}
+.tab-desc{font-size:10px;color:var(--text3);font-family:var(--mono);margin-left:4px}
+
+.page{display:none;padding:20px 24px 60px;animation:fadeIn .25s ease}
+.page.active{display:block}
+@keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+
+/* CHAPTER INTRO */
+.chap-intro{margin-bottom:20px;padding:16px 20px;background:var(--bg2);border:1px solid var(--border);border-radius:12px}
+.chap-intro.amber,.chap-intro.red{}
+.chap-num{font-size:10px;font-family:var(--mono);color:var(--text3);letter-spacing:.1em;margin-bottom:5px}
+.chap-title{font-size:22px;font-weight:700;margin-bottom:5px;letter-spacing:-.3px}
+.chap-question{font-size:13px;color:var(--text2);font-style:italic}
+
+/* SECTION DIVIDER - 더 큰 글씨 */
+.section-div{display:flex;align-items:center;gap:12px;margin:32px 0 18px;padding-top:12px;border-top:1px dashed var(--border)}
+.section-div:first-of-type{border-top:none;padding-top:0;margin-top:0}
+.section-num{font-family:var(--mono);font-size:13px;color:var(--purple);background:var(--purple-bg);border:1px solid rgba(167,139,250,.3);padding:5px 11px;border-radius:6px;letter-spacing:-.2px;font-weight:700}
+.section-title{font-size:22px;font-weight:700;color:var(--text);letter-spacing:-.5px}
+.section-sub{font-size:12px;color:var(--text2);margin-left:auto;font-family:var(--mono)}
+
+/* KPI */
+.kpi-row{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:16px}
+.kpi-row.k5{grid-template-columns:repeat(5,1fr)}
+.kpi{background:var(--bg2);border:1px solid var(--border);border-radius:16px;padding:22px 24px;position:relative;overflow:hidden;box-shadow:0 4px 20px rgba(124,58,237,.06);display:grid;grid-template-columns:auto 1fr;grid-template-areas:"icon label" "icon val" "icon sub";column-gap:18px;row-gap:4px;align-items:center}
+.kpi-label{grid-area:label;font-size:15px;font-family:var(--sans);color:var(--text2);margin-bottom:0;text-transform:none;letter-spacing:-.1px;font-weight:500}
+.kpi-val{grid-area:val;font-size:34px;font-weight:700;font-family:var(--mono);letter-spacing:-1.6px;line-height:1.05}
+.kpi-val.teal{color:var(--teal)}.kpi-val.amber{color:var(--amber)}.kpi-val.red{color:var(--red)}.kpi-val.blue{color:var(--blue)}.kpi-val.purple{color:var(--purple)}
+.kpi-unit{font-size:15px;font-weight:500;color:var(--text2);margin-left:4px}
+.kpi-sub{grid-area:sub;font-size:12px;color:var(--text3);margin-top:2px;font-family:var(--mono)}
+.kpi-icon{grid-area:icon;width:54px;height:54px;border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:26px;flex-shrink:0}
+.kpi.teal .kpi-icon{background:var(--teal-bg);color:var(--teal)}
+.kpi.amber .kpi-icon{background:var(--amber-bg);color:var(--amber)}
+.kpi.red .kpi-icon{background:var(--red-bg);color:var(--red)}
+.kpi.blue .kpi-icon{background:var(--blue-bg);color:var(--blue)}
+.kpi.purple .kpi-icon{background:var(--purple-bg);color:var(--purple)}
+
+.panel{background:var(--bg2);border:1px solid var(--border);border-radius:14px;padding:18px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.06)}
+.panel-title{font-size:17px;font-family:var(--sans);color:var(--text);text-transform:none;letter-spacing:-.2px;margin-bottom:14px;display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;font-weight:700}
+.panel-badge{font-size:10px;background:var(--bg3);border:1px solid var(--border2);border-radius:4px;padding:3px 7px;color:var(--text2);font-family:var(--mono);text-transform:none;letter-spacing:0;white-space:nowrap;font-weight:500}
+.panel-badge.est{color:var(--amber);background:var(--amber-bg);border-color:rgba(217,119,6,.25)}
+
+.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px}
+.grid-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:12px}
+.grid-map{display:grid;grid-template-columns:1fr 320px;gap:12px;margin-bottom:12px}
+.grid-ctrl{display:grid;grid-template-columns:280px 1fr;gap:12px;margin-bottom:12px}
+.grid-sim{display:grid;grid-template-columns:300px 1fr;gap:12px;margin-bottom:12px}
+.grid-cluster{display:grid;grid-template-columns:1fr 350px;gap:12px;margin-bottom:12px}
+.mb12{margin-bottom:12px}
+
+.chart-wrap{position:relative}.chart-wrap.h140{height:140px}.chart-wrap.h160{height:160px}.chart-wrap.h180{height:180px}.chart-wrap.h200{height:200px}.chart-wrap.h240{height:240px}.chart-wrap.h280{height:280px}.chart-wrap.h320{height:320px}.chart-wrap.h360{height:360px}
+
+/* TOGGLE PILLS */
+.toggle-group{display:flex;gap:4px;flex-wrap:wrap}
+.tgl{padding:6px 14px;border-radius:20px;border:1px solid var(--border2);font-size:11px;font-weight:500;cursor:pointer;color:var(--text2);background:transparent;transition:all .15s;font-family:var(--sans)}
+.tgl:hover{color:var(--text)}
+.tgl.active{background:var(--teal-bg);color:var(--teal);border-color:rgba(0,153,117,.3)}
+.tgl.amber.active{background:var(--amber-bg);color:var(--amber);border-color:rgba(217,119,6,.3)}
+.tgl.red.active{background:var(--red-bg);color:var(--red);border-color:rgba(220,38,38,.3)}
+.tgl.blue.active{background:var(--blue-bg);color:var(--blue);border-color:rgba(37,99,235,.3)}
+.tgl.purple.active{background:var(--purple-bg);color:var(--purple);border-color:rgba(124,58,237,.3)}
+
+select{width:100%;background:#fff;border:1.5px solid rgba(167,139,250,.35);border-radius:14px;color:var(--text);font-family:var(--sans);font-size:14px;font-weight:600;padding:11px 16px;outline:none;cursor:pointer;box-shadow:0 2px 6px rgba(167,139,250,.08);transition:all .15s;appearance:none;background-image:url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='none' stroke='%23a78bfa' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' d='M1 1l5 5 5-5'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 14px center;padding-right:38px}
+select:hover{border-color:rgba(167,139,250,.6);box-shadow:0 4px 12px rgba(167,139,250,.18)}
+select:focus{border-color:#a78bfa;box-shadow:0 0 0 3px rgba(167,139,250,.18)}
+select option{background:#fff;color:var(--text);font-family:var(--sans);padding:10px 14px;font-weight:500}
+select option:checked{background:linear-gradient(rgba(167,139,250,.18),rgba(167,139,250,.18));color:#5b44ff;font-weight:700}
+
+/* CUSTOM DROPDOWN (replaces native <select>) */
+.cs-wrap{position:relative;width:100%;font-family:var(--sans)}
+.cs-trigger{width:100%;background:#fff;border:1.5px solid rgba(167,139,250,.35);border-radius:14px;color:var(--text);font-size:14px;font-weight:600;padding:11px 16px;outline:none;cursor:pointer;box-shadow:0 2px 6px rgba(167,139,250,.08);transition:all .15s;display:flex;align-items:center;justify-content:space-between;gap:10px;text-align:left;font-family:inherit}
+.cs-trigger:hover{border-color:rgba(167,139,250,.6);box-shadow:0 4px 12px rgba(167,139,250,.18)}
+.cs-trigger.open{border-color:#a78bfa;box-shadow:0 0 0 3px rgba(167,139,250,.18)}
+.cs-text{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cs-arrow{flex-shrink:0;transition:transform .2s}
+.cs-trigger.open .cs-arrow{transform:rotate(180deg)}
+.cs-panel{position:absolute;top:calc(100% + 6px);left:0;right:0;background:#fff;border:1.5px solid rgba(167,139,250,.35);border-radius:14px;box-shadow:0 8px 24px rgba(167,139,250,.18);padding:6px;max-height:280px;overflow-y:auto;z-index:1000;display:none}
+.cs-panel.open{display:block}
+.cs-panel::-webkit-scrollbar{width:6px}
+.cs-panel::-webkit-scrollbar-thumb{background:rgba(167,139,250,.4);border-radius:3px}
+.cs-option{padding:9px 14px;font-size:14px;color:var(--text);border-radius:10px;cursor:pointer;transition:background .12s;font-weight:500}
+.cs-option:hover{background:rgba(167,139,250,.10)}
+.cs-option.active{background:rgba(167,139,250,.18);color:#5b44ff;font-weight:700}
+.cs-wrap.compact{display:inline-block;width:auto;min-width:120px}
+.cs-wrap.compact .cs-trigger{font-size:12px;padding:6px 12px;border-radius:10px}
+.cs-wrap.compact .cs-option{font-size:12px;padding:7px 12px}
+select:focus{border-color:var(--teal)}
+input[type=number]{width:100%;background:var(--bg3);border:1px solid var(--border2);border-radius:6px;color:var(--text);font-family:var(--mono);font-size:12px;padding:7px 10px;outline:none}
+input[type=number]:focus{border-color:var(--teal)}
+.ctrl-label{font-size:10px;font-family:var(--mono);color:var(--text3);text-transform:uppercase;letter-spacing:.04em;margin-bottom:5px}
+.ctrl-group{margin-bottom:12px}
+
+input[type=range]{width:100%;-webkit-appearance:none;height:3px;background:var(--bg4);border-radius:2px;outline:none}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;border-radius:50%;background:var(--teal);cursor:pointer}
+.slider-val{font-size:13px;font-family:var(--mono);color:var(--teal);text-align:right;margin-top:4px;font-weight:700}
+
+.rank-cards{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px}
+.rank-card{background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:12px}
+.rank-card-title{font-size:10px;font-family:var(--mono);color:var(--text3);text-transform:uppercase;margin-bottom:8px;font-weight:600}
+.rank-item{display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--border)}
+.rank-item:last-child{border-bottom:none}
+.rank-num{font-family:var(--mono);font-size:11px;color:var(--text3);width:18px;flex-shrink:0}
+.rank-name{flex:1;font-size:12px;font-weight:500}
+.rank-val{font-family:var(--mono);font-size:11px;color:var(--teal);font-weight:600}
+
+/* CLUSTER */
+.cl-residential{color:#818cf8}.cl-commercial{color:#f87171}.cl-transit{color:#fbbf24}.cl-mixed{color:#a78bfa}
+.cl-residential-bg{background:rgba(37,99,235,.1);border-color:rgba(37,99,235,.3)}
+.cl-commercial-bg{background:rgba(220,38,38,.1);border-color:rgba(220,38,38,.3)}
+.cl-transit-bg{background:rgba(217,119,6,.1);border-color:rgba(217,119,6,.3)}
+.cl-mixed-bg{background:rgba(124,58,237,.1);border-color:rgba(124,58,237,.3)}
+.cluster-cards{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:12px}
+.cluster-card{background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:12px;cursor:pointer;transition:border-color .15s}
+.cluster-card:hover{border-color:var(--border2)}
+.cluster-tag{display:inline-block;font-size:9px;font-family:var(--mono);font-weight:600;padding:2px 7px;border-radius:10px;margin-bottom:6px;border:1px solid}
+.cluster-name{font-size:13px;font-weight:700;margin-bottom:4px}
+.cluster-districts{font-size:10px;color:var(--text2);line-height:1.6}
+.cluster-feat{font-size:9px;color:var(--text3);margin-top:6px;font-family:var(--mono)}
+
+/* HEATMAP */
+.heatmap-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:3px}
+.hm-cell{border-radius:4px;padding:8px 4px;text-align:center;cursor:pointer;transition:opacity .15s}
+.hm-cell:hover{opacity:.8}
+.hm-name{font-size:9px;color:rgba(0,0,0,.85);font-weight:600;margin-bottom:3px;line-height:1.2}
+.hm-val{font-size:10px;font-family:var(--mono);color:#fff;font-weight:700}
+
+/* TIMELINE */
+.timeline-wrap{position:relative}
+.tl-axis-labels{display:grid;grid-template-columns:80px 1fr 80px;gap:12px;padding-bottom:6px;border-bottom:1px solid var(--border);font-size:10px;font-family:var(--mono);color:var(--text3);font-weight:600}
+.tl-row{display:grid;grid-template-columns:80px 1fr 80px;gap:12px;align-items:center;padding:8px 0;border-bottom:1px solid var(--border)}
+.tl-row:last-child{border-bottom:none}
+.tl-name{font-size:12px;font-weight:600}
+.tl-cap{font-size:10px;color:var(--text3);font-family:var(--mono);margin-top:1px}
+.tl-bar-wrap{position:relative;height:20px;background:var(--bg3);border-radius:4px;overflow:hidden}
+.tl-now{position:absolute;top:0;bottom:0;width:2px;background:var(--teal);z-index:2}
+.tl-bar{position:absolute;height:100%;border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:9px;font-family:var(--mono);color:#fff;font-weight:600}
+.tl-status{font-size:10px;font-family:var(--mono);text-align:right;font-weight:600}
+
+/* CAPACITY GAP — 신규 */
+.gap-banner{background:linear-gradient(135deg,#fff5f5,#fffaf0);border:1px solid rgba(220,38,38,.15);border-radius:10px;padding:14px 18px;margin-bottom:12px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:18px}
+.gap-stat{display:flex;flex-direction:column;gap:4px}
+.gap-label{font-size:10px;font-family:var(--mono);color:var(--text3);text-transform:uppercase;letter-spacing:.05em}
+.gap-val{font-size:22px;font-weight:700;font-family:var(--mono);letter-spacing:-1px}
+.gap-val.shortage{color:var(--red)}
+.gap-val.surplus{color:var(--teal)}
+.gap-sub{font-size:10px;color:var(--text2);font-family:var(--mono)}
+
+/* SIM CARDS */
+.sim-cards{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:14px}
+.sim-card{background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:16px;position:relative;transition:border-color .15s}
+.sim-card:hover{border-color:var(--teal)}
+.sim-rank{position:absolute;top:-9px;left:14px;background:#10b981;color:#fff;font-family:var(--mono);font-weight:700;font-size:12px;padding:3px 10px;border-radius:5px;letter-spacing:.02em}
+.sim-card.r2 .sim-rank{background:#818cf8}
+.sim-card.r3 .sim-rank{background:#fbbf24}
+.sim-name{font-size:16px;font-weight:700;margin:6px 0 10px;color:var(--text);letter-spacing:-.01em}
+.sim-meta{font-size:12px;color:var(--text2);margin-bottom:10px;font-family:var(--mono)}
+.sim-stat{display:flex;justify-content:space-between;align-items:center;font-size:12px;padding:5px 0;border-bottom:1px dashed var(--border)}
+.sim-stat:last-child{border-bottom:none}
+.sim-stat-label{color:var(--text2);font-weight:500}
+.sim-stat-val{font-family:var(--mono);color:var(--text);font-weight:600;font-size:13px}
+.sim-metric-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:10px 0}
+.sim-metric{background:#fff;border:1px solid var(--border);border-radius:10px;padding:10px;display:grid;grid-template-columns:32px 1fr;gap:8px;align-items:center}
+.sim-metric-icon{width:32px;height:32px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0}
+.sim-metric.dist .sim-metric-icon{background:rgba(129,140,248,.12);color:#818cf8}
+.sim-metric.cost .sim-metric-icon{background:rgba(251,191,36,.15);color:#d97706}
+.sim-metric.cap .sim-metric-icon{background:rgba(16,185,129,.12);color:#10b981}
+.sim-metric.co2 .sim-metric-icon{background:rgba(167,139,250,.12);color:#a78bfa}
+.sim-metric-label{font-size:11px;color:var(--text3);font-weight:600;margin-bottom:2px}
+.sim-metric-val{font-family:var(--mono);color:var(--text);font-weight:700;font-size:14px;letter-spacing:-.3px}
+
+/* SIM SECTION — 입력 사이드바와 패널 텍스트 가독성 강화 */
+.grid-sim .panel-title{font-size:17px}
+.grid-sim .panel-badge{font-size:11px;padding:3px 8px}
+.grid-sim .ctrl-label{font-size:12px;margin-bottom:7px;letter-spacing:.03em}
+.grid-sim select,
+.grid-sim input[type="number"]{font-size:14px;padding:8px 10px}
+.grid-sim input[type="range"]{height:6px}
+.grid-sim .weight-row{font-size:13px;margin-bottom:5px;display:flex;align-items:center;justify-content:space-between}
+.grid-sim .weight-row .weight-pct{font-size:13px;margin-left:8px}
+.info-icon{display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px;border-radius:50%;border:1px solid var(--text3);color:var(--text3);font-size:9px;font-family:var(--mono);font-weight:700;font-style:italic;cursor:help;margin-left:6px;position:relative;line-height:1;flex-shrink:0;transition:border-color .15s,color .15s;vertical-align:middle}
+.info-icon:hover{border-color:var(--teal);color:var(--teal)}
+.info-icon::after{content:attr(data-tip);position:absolute;left:0;top:calc(100% + 6px);background:var(--bg2);border:1px solid var(--border2);border-radius:6px;padding:8px 10px;font-size:11px;font-family:var(--sans);font-style:normal;font-weight:400;color:var(--text);white-space:normal;width:220px;line-height:1.55;box-shadow:0 4px 12px rgba(0,0,0,.4);opacity:0;pointer-events:none;transition:opacity .15s;z-index:1000}
+.info-icon:hover::after{opacity:1}
+.flag-g{color:#16a34a}.flag-y{color:var(--amber)}.flag-r{color:var(--red)}
+
+/* CITIZEN CARD - REIMAGINED — 단순 통계 X, 환경 영향/실천 가이드 */
+
+/* GANGSEO CASE */
+.case-box{background:var(--bg2);border:1px solid rgba(124,58,237,.15);border-radius:10px;padding:16px}
+.case-header{display:flex;align-items:center;gap:8px;margin-bottom:10px}
+.case-tag{font-size:9px;font-family:var(--mono);background:var(--purple-bg);color:var(--purple);padding:2px 8px;border-radius:10px;border:1px solid rgba(124,58,237,.3)}
+.case-title{font-size:14px;font-weight:700}
+.case-text{font-size:11px;color:var(--text2);line-height:1.7;margin-bottom:10px}
+.case-text strong{color:var(--text);font-weight:600}
+
+/* GU DETAIL PANEL — Ch.2 클러스터 옆에 표시 */
+.gu-detail-panel{background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:14px;min-height:280px}
+.gu-detail-empty{font-size:11px;color:var(--text3);text-align:center;padding:30px 10px;line-height:1.7}
+.gu-detail-name{font-size:18px;font-weight:700;margin-bottom:4px}
+.gu-detail-cluster{font-size:11px;font-family:var(--mono);padding:3px 8px;border-radius:10px;display:inline-block;margin-bottom:10px}
+.gu-detail-stat{display:flex;justify-content:space-between;font-size:11px;padding:5px 0;border-bottom:1px dashed var(--border)}
+.gu-detail-stat-label{color:var(--text3)}
+.gu-detail-stat-val{font-family:var(--mono);color:var(--text);font-weight:500}
+.gu-detail-msg{margin-top:10px;padding:8px 10px;background:var(--bg2);border:1px solid var(--border);border-radius:6px;font-size:11px;line-height:1.6;color:var(--text2)}
+
+/* FACTOR PANEL — 자치구별 요인 분석 */
+.factor-panel{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:14px}
+.factor-row{display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--border);font-size:11px}
+.factor-row:last-child{border-bottom:none}
+.factor-name{color:var(--text);font-weight:500;flex:1}
+.factor-effect{display:flex;align-items:center;gap:8px}
+.factor-bar{width:80px;height:6px;background:var(--bg4);border-radius:3px;overflow:hidden;position:relative}
+.factor-bar-fill{position:absolute;top:0;height:100%;border-radius:3px}
+.factor-bar-fill.pos{left:50%;background:var(--teal)}
+.factor-bar-fill.neg{right:50%;background:var(--red)}
+.factor-val{font-family:var(--mono);font-size:10px;font-weight:600;width:40px;text-align:right}
+
+/* ADJUSTED SCORE TABLE */
+.adj-table{width:100%;border-collapse:collapse}
+.adj-table th{font-size:10px;font-family:var(--mono);color:var(--text3);text-transform:uppercase;padding:6px 8px;border-bottom:1px solid var(--border);text-align:left;font-weight:600}
+.adj-table td{padding:6px 8px;border-bottom:1px solid var(--border);font-size:11px;vertical-align:middle}
+.adj-table tr:last-child td{border-bottom:none}
+.adj-table tr:hover td{background:var(--bg3);cursor:pointer}
+
+/* TOOLTIP */
+.tooltip{position:fixed;background:#1a2332;color:#f5f7fa;border:1px solid rgba(0,0,0,.2);box-shadow:0 4px 12px rgba(0,0,0,.15);border-radius:8px;padding:10px 12px;font-size:11px;pointer-events:none;z-index:999;display:none;min-width:170px}
+.tt-name{font-weight:700;margin-bottom:4px;font-size:12px;color:#22d3a8}
+.tt-row{display:flex;justify-content:space-between;gap:16px;color:rgba(245,247,250,.75);margin-bottom:2px}
+.tt-val{color:#f5f7fa;font-family:var(--mono)}
+
+.popup-overlay{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:300;display:none;align-items:center;justify-content:center}
+.popup-overlay.show{display:flex}
+.popup{background:var(--bg2);border:1px solid var(--border2);border-radius:14px;padding:24px;width:680px;max-height:80vh;overflow-y:auto;position:relative}
+.popup-close{position:absolute;top:16px;right:16px;width:28px;height:28px;border-radius:50%;background:var(--bg3);border:1px solid var(--border2);color:var(--text2);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:14px}
+.popup-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:14px}
+.popup-stat{font-size:11px;color:var(--text2);margin-bottom:3px}
+.popup-val{font-size:18px;font-weight:600;font-family:var(--mono)}
+
+.info-box{background:var(--bg3);border-radius:6px;padding:10px 12px;font-size:11px;font-family:var(--mono);color:var(--text2);line-height:1.8;white-space:pre-line}
+.iv{color:var(--teal);font-weight:600}
+
+
+.disclaimer{background:var(--amber-bg);border:1px solid rgba(217,119,6,.2);border-radius:8px;padding:12px 14px;display:flex;gap:10px;align-items:flex-start}
+.disc-icon{color:var(--amber);font-size:16px;flex-shrink:0}
+.disc-content{font-size:11px;color:var(--text2);line-height:1.7}
+.disc-content strong{color:var(--amber)}
+
+::-webkit-scrollbar{width:4px;height:4px}
+::-webkit-scrollbar-track{background:#e3e8ef}
+::-webkit-scrollbar-thumb{background:#b8c2d0;border-radius:2px}
+
+/* LEAFLET */
+.lmap{width:100%;height:340px;border-radius:6px;background:#eaeef3;cursor:pointer;z-index:1}
+.lmap.h280{height:280px}
+.lmap.h360{height:360px}
+.leaflet-container{background:#eaeef3 !important;font-family:var(--sans) !important;outline:none !important}
+.leaflet-control-attribution{background:rgba(255,255,255,.85) !important;color:var(--text3) !important;font-size:9px !important;padding:2px 6px !important}
+.leaflet-control-attribution a{color:var(--text2) !important}
+.leaflet-control-zoom a{background:var(--bg3) !important;color:var(--text) !important;border-color:var(--border2) !important;border-radius:4px !important;width:26px !important;height:26px !important;line-height:26px !important;font-size:14px !important}
+.leaflet-control-zoom a:hover{background:var(--bg4) !important;color:var(--teal) !important}
+.gu-tooltip{background:#1a2332 !important;border:1px solid rgba(0,0,0,.2) !important;color:#f5f7fa !important;font-family:var(--sans) !important;font-size:11px !important;padding:7px 10px !important;border-radius:6px !important;box-shadow:0 2px 12px rgba(0,0,0,.15) !important;line-height:1.5 !important}
+.gu-tooltip strong{color:#22d3a8;font-size:12px}
+.gu-tooltip::before{display:none !important}
+.leaflet-tooltip-top:before,.leaflet-tooltip-bottom:before,.leaflet-tooltip-left:before,.leaflet-tooltip-right:before{display:none}
+.gu-label{background:transparent;border:none;font-family:var(--sans);font-weight:600;color:#1a2332;text-shadow:0 0 3px rgba(255,255,255,.9),0 0 3px rgba(255,255,255,.9);font-size:10px;text-align:center;pointer-events:none}
+.map-loading{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:11px;color:var(--text3);font-family:var(--mono);background:var(--bg2);border-radius:6px;z-index:5;pointer-events:none}
+.map-loading.hide{display:none}
+.map-legend{position:absolute;bottom:12px;left:12px;background:rgba(255,255,255,.92);border:1px solid var(--border2);border-radius:6px;padding:8px 10px;font-size:9px;font-family:var(--mono);color:var(--text2);z-index:401;pointer-events:none;box-shadow:0 2px 8px rgba(0,0,0,.08)}
+.map-legend-row{display:flex;align-items:center;gap:6px;margin:2px 0}
+.map-legend-dot{width:10px;height:10px;border-radius:2px}
+
+.donut-center{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);text-align:center;pointer-events:none}
+.donut-center-val{font-size:24px;font-weight:700;font-family:var(--mono);color:var(--text);line-height:1}
+.donut-center-label{font-size:10px;color:var(--text3);font-family:var(--mono);margin-top:2px}
+
+/* ════════════ FROM MINSEO (finance/policy/matrix/scenario styles) ════════════ */
+/* ── FINANCE / POLICY ADDITIONS FOR YW — v2: burden_policy_dashboard_v7 스타일 ── */
+.fin-compact-grid{display:grid;grid-template-columns:1.12fr .88fr;gap:12px;margin-bottom:12px}
+.finance-switch{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px;flex-wrap:wrap}
+.finance-note{font-size:10px;color:var(--text3);font-family:var(--mono)}
+.finance-explain-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-top:10px;font-size:10px;color:var(--text2);line-height:1.45}
+.finance-explain-card{border:1px solid var(--border);border-radius:8px;background:var(--bg3);padding:8px;min-height:64px}
+.finance-explain-card strong{display:block;margin-bottom:3px;font-weight:900}
+.scenario-axis-note{display:flex;justify-content:space-between;align-items:center;font-size:10px;color:var(--text3);font-family:var(--mono);margin:4px 0 8px;gap:10px;flex-wrap:wrap}
+.scenario-matrix-scroll{overflow-x:auto;padding-bottom:4px}
+.scenario-matrix{min-width:1080px;display:block}
+.matrix-plot-table{display:grid;grid-template-columns:96px repeat(4,minmax(190px,1fr));grid-template-rows:50px repeat(4,128px) 58px;border:1px solid var(--border2);border-radius:10px;overflow:hidden;background:var(--bg2)}
+.matrix-corner{background:#f8fafc;border-right:1px solid var(--border);border-bottom:1px solid var(--border)}
+.matrix-col-head{display:flex;align-items:center;justify-content:center;text-align:center;font-size:11px;line-height:1.35;font-weight:800;color:var(--text);border-left:1px solid var(--border);border-bottom:1px solid var(--border);padding:7px 6px;background:#fafafa}
+.matrix-col-head small{display:block;font-size:9px;font-family:var(--mono);font-weight:500;color:var(--text3);margin-top:2px}
+.matrix-row-head{display:flex;align-items:center;justify-content:center;text-align:center;font-size:14px;font-weight:900;border-top:1px solid var(--border);border-right:1px solid var(--border);background:#fff}
+.matrix-cell{position:relative;border-left:1px solid var(--border);border-top:1px solid var(--border);overflow:hidden;cursor:default;transition:box-shadow .12s ease,filter .12s ease}
+.matrix-cell.occupied{cursor:pointer}
+.matrix-cell.occupied:hover{box-shadow:inset 0 0 0 2px rgba(0,153,117,.38);filter:saturate(1.07)}
+.matrix-cell.selected{box-shadow:inset 0 0 0 3px rgba(220,38,38,.28)}
+.matrix-scenario-no{position:absolute;left:10px;top:8px;font-family:var(--mono);font-size:10px;color:#64748b;font-weight:800;z-index:3}
+.matrix-empty-note{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:10px;color:rgba(100,116,139,.35);font-family:var(--mono)}
+.matrix-point{position:absolute;transform:translate(-50%,-50%);width:var(--pt);height:var(--pt);display:flex;align-items:center;justify-content:center;text-align:center;padding:4px;border:2px solid currentColor;background:rgba(255,255,255,.84);color:#334155;font-size:10px;line-height:1.13;font-weight:900;box-shadow:0 3px 8px rgba(15,23,42,.08);z-index:4}
+.matrix-point.circle{border-radius:50%}
+.matrix-point.square{border-radius:7px}
+.matrix-point.diamond{border-radius:8px;transform:translate(-50%,-50%) rotate(45deg)}
+.matrix-point.diamond span{transform:rotate(-45deg)}
+.matrix-point.triangle{clip-path:polygon(50% 3%,98% 92%,2% 92%);border-radius:0;background:currentColor;color:#fff;border:0;box-shadow:none;padding-top:16px}
+.matrix-point.triangle span{color:#fff;font-size:10px;text-shadow:0 1px 2px rgba(0,0,0,.18)}
+.matrix-x-label{display:flex;align-items:center;justify-content:center;text-align:center;font-size:11px;line-height:1.35;color:var(--text);font-weight:700;border-left:1px solid var(--border);border-top:1px solid var(--border);padding:6px 8px;background:#fff}
+.matrix-x-label small{display:block;color:var(--text3);font-family:var(--mono);font-size:9px;font-weight:500;margin-top:2px}
+.matrix-axis-caption{grid-column:2/6;display:flex;align-items:center;justify-content:center;gap:8px;font-size:11px;font-family:var(--mono);color:var(--text2);background:#fff;border-left:1px solid var(--border);border-top:1px solid var(--border)}
+.matrix-legend{display:flex;gap:14px;align-items:center;justify-content:flex-end;flex-wrap:wrap;margin-top:8px;font-size:10px;color:var(--text2)}
+.matrix-legend-item{display:flex;align-items:center;gap:5px}
+.matrix-legend-symbol{width:12px;height:12px;border-radius:3px;display:inline-block}
+.matrix-legend-symbol.circle{border-radius:50%}
+.matrix-legend-symbol.diamond{transform:rotate(45deg)}
+.matrix-legend-symbol.triangle{clip-path:polygon(50% 0,100% 100%,0 100%);border-radius:0}
+.matrix-size-legend{display:flex;gap:6px;align-items:flex-end;margin-left:6px}
+.matrix-size-dot{border-radius:50%;background:rgba(148,163,184,.45);border:1px solid rgba(148,163,184,.7)}
+.scenario-detail-box{background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:14px;min-height:170px}
+.scenario-detail-title{font-size:17px;font-weight:800;margin-bottom:4px;color:var(--text)}
+.scenario-detail-sub{font-size:10px;color:var(--text3);font-family:var(--mono);margin-bottom:10px}
+.scenario-policy-list{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;margin:10px 0}
+.scenario-policy-item{background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:8px;font-size:10px;line-height:1.45;color:var(--text2)}
+.scenario-levers{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;margin-top:8px}
+.scenario-lever{background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:8px;text-align:center}
+.scenario-lever-label{font-size:9px;color:var(--text3);font-family:var(--mono)}
+.scenario-lever-val{font-size:15px;font-weight:800;font-family:var(--mono);margin-top:2px}
+.finance-detail{background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:12px;min-height:112px}
+.finance-detail-title{font-size:15px;font-weight:800;margin-bottom:5px;color:var(--text)}
+.finance-detail-text{font-size:11px;color:var(--text2);line-height:1.7}
+.finance-type-pill{display:inline-flex;align-items:center;gap:4px;padding:5px 12px;border-radius:999px;border:1px solid var(--border2);background:#fff;font-size:12px;font-family:var(--mono);font-weight:800;color:var(--text2)}
+.policy-panel-grid{display:grid;grid-template-columns:330px 1fr;gap:14px;align-items:stretch}
+.policy-sim-panel{padding:18px;min-height:560px}
+.policy-kpi-row{display:grid;grid-template-columns:repeat(3,1fr);gap:9px;margin-bottom:10px}
+.policy-kpi{background:var(--bg3);border:1px solid var(--border);border-radius:9px;padding:12px 12px;min-height:78px}
+.policy-kpi-label{font-size:12px;color:var(--text2);font-family:var(--sans);text-transform:none;letter-spacing:-.1px;margin-bottom:7px;font-weight:600}
+.policy-kpi-val{font-size:24px;font-weight:800;font-family:var(--mono);letter-spacing:-.5px}
+.policy-kpi-sub{font-size:9px;color:var(--text3);font-family:var(--mono);margin-top:4px;line-height:1.35}
+.policy-reco-box{background:var(--bg2);border:1px solid var(--border);border-radius:14px;padding:18px 20px;margin-bottom:10px;box-shadow:0 2px 8px rgba(124,58,237,.04)}
+.policy-reco-title{font-size:16px;font-weight:800;margin-bottom:8px;color:var(--text)}
+.policy-reco-text{font-size:11px;color:var(--text2);line-height:1.75}
+.policy-reco-pills{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:16px}
+
+/* 추천 박스 2-column */
+.reco-grid{display:grid;grid-template-columns:1fr 1.3fr;gap:16px}
+.reco-col{background:#fcfcfe;border:1px solid #e6e1ff;border-radius:14px;padding:18px 18px 16px;box-shadow:0 2px 8px rgba(124,58,237,.04)}
+.reco-col-title{font-size:15px;font-weight:800;color:var(--text);margin-bottom:6px}
+.reco-col-sub{font-size:12px;color:var(--text3);margin-bottom:14px;line-height:1.55}
+.reco-metrics{display:flex;gap:10px;margin-bottom:14px;flex-wrap:wrap}
+.reco-metric{flex:1;min-width:90px;background:#fff;border:1px solid #e6e1ff;border-radius:10px;padding:12px 8px;text-align:center}
+.reco-metric-label{font-size:12px;color:var(--text2);font-weight:600;display:flex;align-items:center;justify-content:center;gap:4px;margin-bottom:8px}
+.reco-metric-val{font-size:22px;font-weight:900;font-family:var(--mono);color:var(--text);letter-spacing:-.5px}
+.reco-metric.rev .reco-metric-val{color:#10b981}
+.reco-metric.gen .reco-metric-val{color:#fb923c}
+.reco-metric.food .reco-metric-val{color:#a78bfa}
+.reco-apply-btn{width:100%;padding:12px;border-radius:10px;font-size:14px;font-weight:800;cursor:pointer;font-family:var(--sans);background:#10b981;color:#fff;border:none;display:flex;align-items:center;justify-content:center;gap:6px;transition:all .15s}
+.reco-apply-btn:hover{background:#059669;box-shadow:0 4px 12px rgba(16,185,129,.3)}
+.reco-apply-note{font-size:11px;color:var(--text3);margin-top:10px;line-height:1.55}
+.reco-strategies{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.reco-strategy{display:grid;grid-template-columns:38px 1fr;gap:10px;align-items:start;padding:6px 4px}
+.reco-strategy-icon{width:38px;height:38px;border-radius:9px;background:#f1efff;display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0}
+.reco-strategy-title{font-size:13px;font-weight:800;color:var(--text);margin-bottom:4px}
+.reco-strategy-desc{font-size:12px;color:var(--text2);line-height:1.55}
+.policy-slider-row{margin-bottom:14px}
+.policy-slider-head{display:flex;justify-content:space-between;font-size:13px;font-weight:600;margin-bottom:7px;color:var(--text)}
+.policy-slider-head strong{font-family:var(--mono);color:var(--teal);font-size:14px}
+.policy-ctrl-label{font-size:13px !important;font-family:var(--sans) !important;color:var(--text) !important;text-transform:none !important;letter-spacing:-.1px !important;font-weight:600;margin-bottom:7px !important}
+.policy-actions{display:grid;grid-template-columns:1fr;gap:7px;margin-top:12px}
+.policy-action-btn{width:100%;padding:10px;border-radius:8px;font-size:12px;font-weight:800;cursor:pointer;font-family:var(--sans);transition:all .12s ease}
+.policy-action-btn.primary{background:var(--teal-bg);border:1px solid rgba(0,153,117,.3);color:var(--teal)}
+.policy-action-btn.primary:hover{background:rgba(0,153,117,.13)}
+.policy-action-btn.ghost{background:#fff;border:1px solid var(--border2);color:var(--text2)}
+.policy-action-btn.ghost:hover{border-color:rgba(0,153,117,.3);color:var(--teal)}
+.chart-wrap.h300{height:300px}
+@media(max-width:1100px){.fin-compact-grid,.policy-panel-grid{grid-template-columns:1fr}.scenario-policy-list,.scenario-levers{grid-template-columns:1fr}.policy-kpi-row{grid-template-columns:1fr 1fr}.finance-explain-grid{grid-template-columns:1fr 1fr}.scenario-matrix{min-width:940px}}
+
+
+/* ── v3 refinements: compact v7-style finance matrix + 2x2 policy charts ── */
+.scenario-matrix{min-width:780px;display:block}
+.matrix-plot-table{grid-template-columns:82px repeat(4,minmax(145px,1fr));grid-template-rows:42px repeat(4,84px) 42px}
+.matrix-col-head{font-size:10px;padding:5px 4px}
+.matrix-col-head small{font-size:8px}
+.matrix-row-head{font-size:12px}
+.matrix-x-label{font-size:10px;padding:4px 5px}
+.matrix-x-label small{font-size:8px}
+.matrix-scenario-no{left:7px;top:5px;font-size:9px}
+.matrix-point{font-size:8.5px;line-height:1.08;border-radius:999px;background:rgba(255,255,255,.88)!important;padding:3px;box-shadow:0 2px 6px rgba(15,23,42,.08)}
+.matrix-point.circle{border-radius:50%;clip-path:none;transform:translate(-50%,-50%);border:2px solid currentColor;background:rgba(255,255,255,.88)!important;color:inherit;padding:3px}
+.matrix-point.square{border-radius:7px;clip-path:none;transform:translate(-50%,-50%);border:2px solid currentColor;background:rgba(255,255,255,.88)!important;color:inherit;padding:3px}
+.matrix-point.diamond{border-radius:7px;clip-path:none;transform:translate(-50%,-50%) rotate(45deg);border:2px solid currentColor;background:rgba(255,255,255,.88)!important;color:inherit;padding:3px}
+.matrix-point.diamond span{transform:rotate(-45deg);display:block}
+.matrix-point.triangle{clip-path:polygon(50% 0,96% 88%,4% 88%);border-radius:0;transform:translate(-50%,-50%);border:0;background:currentColor!important;color:#fff;padding:12px 4px 2px}
+.matrix-point.triangle span{color:#fff;text-shadow:0 1px 2px rgba(0,0,0,.18);font-size:8.5px}
+.matrix-legend-symbol.circle{border-radius:50%;clip-path:none;transform:none}
+.matrix-legend-symbol.square{border-radius:3px;clip-path:none;transform:none}
+.matrix-legend-symbol.diamond{border-radius:3px;clip-path:none;transform:rotate(45deg)}
+.matrix-legend-symbol.triangle{clip-path:polygon(50% 0,100% 100%,0 100%);border-radius:0;transform:none}
+.matrix-size-legend{display:none}
+.policy-sim-panel{min-height:690px}
+.policy-panel-grid{grid-template-columns:320px 1fr;gap:16px}
+.policy-chart-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:10px;align-items:stretch}
+.policy-mini-chart{background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:12px;min-height:300px}
+.policy-mini-chart-title{font-size:14px;font-family:var(--sans);color:var(--text);font-weight:700;text-transform:none;letter-spacing:-.1px;margin-bottom:9px}
+.policy-mini-chart .chart-wrap{height:248px}
+@media(max-width:1100px){.policy-chart-grid{grid-template-columns:1fr}.policy-panel-grid{grid-template-columns:1fr}.policy-mini-chart{min-height:270px}.policy-mini-chart .chart-wrap{height:220px}}
+
+
+
+/* ── YW feedback patch: finance target toggle + policy price note ── */
+.finance-analysis-target{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:12px}
+.finance-combined-grid{display:grid;grid-template-columns:minmax(115px,.2fr) minmax(260px,.3fr) minmax(430px,.5fr);gap:12px;align-items:start}
+.finance-combined-grid>.panel{display:flex;flex-direction:column;min-height:0}
+.finance-map-card .lmap{height:185px}
+.finance-combined-grid .chart-wrap.h400{height:300px}
+.finance-combined-grid .scenario-matrix-scroll{height:300px;display:flex;align-items:stretch}
+.finance-combined-grid .scenario-matrix{width:100%;min-width:0}
+.finance-combined-grid .matrix-plot-table{height:300px;grid-template-columns:68px repeat(4,minmax(92px,1fr));grid-template-rows:32px repeat(4,55px) 28px}
+.finance-combined-grid .matrix-col-head{font-size:9px;padding:4px 3px}
+.finance-combined-grid .matrix-row-head{font-size:10px}
+.finance-combined-grid .matrix-x-label{font-size:9px;padding:3px}
+.finance-combined-grid .matrix-point{font-size:8px}
+.finance-combined-grid .matrix-scenario-no{font-size:8px;left:5px;top:4px}
+.finance-detail-wide{grid-column:2 / 4;background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:16px;min-height:0}
+.finance-detail-wide .scenario-detail-title{font-size:19px}
+.finance-detail-wide .scenario-detail-sub{font-size:11px;line-height:1.7}
+.finance-detail-wide .scenario-policy-list{grid-template-columns:repeat(3,1fr)}
+.price-note{font-size:9px;color:var(--text3);font-family:var(--mono);margin-top:4px;line-height:1.45;text-align:right}
+.finance-map-card{padding:8px!important;align-self:start}
+.finance-map-card .panel-title,.finance-combined-grid>.panel>.panel-title{margin-bottom:7px}
+.finance-map-card .panel-badge{margin-left:4px}
+.finance-map-card .gu-label{font-size:8px}
+.finance-map-card .map-legend{display:none}
+@media(max-width:1280px){.finance-combined-grid{grid-template-columns:1fr}.finance-detail-wide{grid-column:1}.finance-map-card .lmap,.finance-combined-grid .chart-wrap.h400,.finance-combined-grid .scenario-matrix-scroll{height:280px}}
+
+
+/* ── policy effect cards: current(red) → simulation(green) ── */
+.policy-compare-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px}
+.policy-compare-card{background:var(--bg3);border:1px solid var(--border);border-radius:12px;padding:10px 14px;min-height:auto}
+.policy-compare-title{font-size:14px;font-family:var(--sans);font-weight:800;color:var(--text);letter-spacing:-.1px;text-transform:none;margin-bottom:10px}
+.policy-compare-flow{display:grid;grid-template-columns:minmax(0,1fr) 20px minmax(0,1fr);gap:5px;align-items:center}
+.policy-compare-box{border-radius:8px;padding:8px 10px;background:#fff;min-width:0;overflow:hidden;display:flex;flex-direction:column;align-items:center}
+.policy-compare-box.current{border:1px solid rgba(248,113,113,.45);background:rgba(248,113,113,.075)}
+.policy-compare-box.after{border:1px solid rgba(16,185,129,.45);background:rgba(16,185,129,.09)}
+.policy-compare-label{font-size:12px;color:var(--text2);font-weight:700;margin-bottom:5px;white-space:normal;line-height:1.3;text-align:center}
+.policy-compare-val{font-size:24px;font-weight:900;font-family:var(--mono);letter-spacing:-.7px;line-height:1.1;white-space:normal;overflow-wrap:break-word;word-break:break-all;text-align:center}
+.policy-compare-box.current .policy-compare-val{color:var(--red)}
+.policy-compare-box.after .policy-compare-val{color:var(--teal)}
+.policy-compare-sub{font-size:11px;color:var(--text3);font-family:var(--mono);margin-top:6px;line-height:1.4;white-space:normal;text-align:center}
+.policy-compare-arrow{display:flex;align-items:center;justify-content:center;color:var(--text3);font-size:15px;font-weight:900;font-family:var(--mono)}
+@media(max-width:1100px){.policy-compare-grid{grid-template-columns:1fr}.policy-compare-flow{grid-template-columns:1fr 18px 1fr}.policy-compare-val{font-size:17px}}
+</style>
+</head>
+<body>
+
+<div class="tooltip" id="tooltip">
+  <div class="tt-name" id="tt-n"></div>
+  <div class="tt-row"><span>발생량</span><span class="tt-val" id="tt-v1"></span></div>
+  <div class="tt-row"><span>1인당</span><span class="tt-val" id="tt-v2"></span></div>
+  <div class="tt-row"><span>유형</span><span class="tt-val" id="tt-v3"></span></div>
+</div>
+
+<div class="popup-overlay" id="popup-overlay" onclick="if(event.target===this)closePopup()">
+  <div class="popup" id="popup-inner">
+    <button class="popup-close" onclick="closePopup()">✕</button>
+    <div id="popup-content"></div>
+  </div>
+</div>
+
+
+<div class="tabs">
+  <div class="tab active" onclick="sw(0)">
+    <span class="tab-num">CH.1</span>
+    <span class="tab-label">🔍 진단</span>
+    <span class="tab-desc">What — 지금 무슨 일이?</span>
+  </div>
+  <div class="tab amber-tab" onclick="sw(1)">
+    <span class="tab-num">CH.2</span>
+    <span class="tab-label">🧬 분석</span>
+    <span class="tab-desc">Why — 왜 구마다 다른가?</span>
+  </div>
+  <div class="tab red-tab" onclick="sw(2)">
+    <span class="tab-num">CH.3</span>
+    <span class="tab-label">💊 처방</span>
+    <span class="tab-desc">How — 매칭 시뮬레이터</span>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════════ -->
+<!--   CH.1 진단                                       -->
+<!-- ════════════════════════════════════════════════ -->
+<div class="page active" id="pg0">
+
+  <div class="chap-intro">
+    <div class="chap-num">CHAPTER 1 · DIAGNOSIS</div>
+    <div class="chap-title">🔍 진단 — 지금 서울에 무슨 일이 일어나고 있나</div>
+    <div class="chap-question">"어디서 얼마나 나오고 있는가? 시설 용량은 충분한가?"</div>
+  </div>
+
+  <!-- 1.1 정비 일정 + 초과분/여력 -->
+  <div class="section-div">
+    <span class="section-num">1.1</span>
+    <span class="section-title">자원 회수 시설 정비 일정과 처리 여력</span>
+    <span class="section-sub">2026 실제 정비 일정 (출처: rrf.seoul.go.kr)</span>
+  </div>
+
+  <!-- 초과분/여력 배너 (NEW) -->
+  <div class="gap-banner">
+    <div class="gap-stat">
+      <span class="gap-label">소각 처리 대상량</span>
+      <span class="gap-val" id="gap-demand">2,733<span style="font-size:13px;color:var(--text2)">톤/일</span></span>
+      <span class="gap-sub">2024 생활계 일평균 × 소각률 26.0%</span>
+    </div>
+    <div class="gap-stat">
+      <span class="gap-label">4개 시설 설계 용량</span>
+      <span class="gap-val" id="gap-supply" style="color:var(--blue)">2,850<span style="font-size:13px;color:var(--text2)">톤/일</span></span>
+      <span class="gap-sub">정상 가동 시 여유 <strong style="color:var(--teal)">+117톤/일</strong></span>
+    </div>
+    <div class="gap-stat">
+      <span class="gap-label">정비 시 부족분</span>
+      <span class="gap-val shortage" id="gap-shortage">−283<span style="font-size:13px;color:var(--text2)">톤/일</span></span>
+      <span class="gap-sub">양천 정비기간(4/15~5/21) 최대</span>
+    </div>
+  </div>
+
+  <div class="panel mb12">
+    <div class="panel-title">서울시 공공 소각시설 4개소 정비 타임라인 (2026년)</div>
+    <div class="grid-2">
+      <div id="facility-timeline"></div>
+      <div>
+        <div style="font-size:11px;font-weight:600;margin-bottom:6px">월별 가용 소각 용량 vs 처리 대상 (2026)</div>
+        <div class="chart-wrap h200"><canvas id="capacity-chart"></canvas></div>
+      </div>
+    </div>
+    <div style="display:flex;gap:14px;margin-top:8px;flex-wrap:wrap">
+      <div style="display:flex;align-items:center;gap:5px;font-size:10px;color:var(--text2)"><div style="width:10px;height:10px;background:rgba(37,99,235,.55);border-radius:2px"></div>정상 (여유)</div>
+      <div style="display:flex;align-items:center;gap:5px;font-size:10px;color:var(--text2)"><div style="width:10px;height:10px;background:rgba(220,38,38,.55);border-radius:2px"></div>정비 중 (부족)</div>
+      <div style="display:flex;align-items:center;gap:5px;font-size:10px;color:var(--text2)"><div style="width:10px;height:10px;background:rgba(217,119,6,.7);border-radius:2px"></div>정비 기간 바</div>
+    </div>
+  </div>
+
+  <!-- 1.2 자치구별 발생 현황 -->
+  <div class="section-div">
+    <span class="section-num">1.2</span>
+    <span class="section-title">자치구별 폐기물 발생 및 처리 현황</span>
+    <span class="section-sub">총량·1인당·재활용·소각·매립</span>
+  </div>
+
+  <div class="kpi-row">
+    <div class="kpi teal"><span class="kpi-icon">🗑</span><div class="kpi-label">서울 생활계 연간 발생량</div><div class="kpi-val teal" id="kpi-total">383.7<span class="kpi-unit">만톤</span></div><div class="kpi-sub" id="kpi-total-sub">일평균 10,512톤/일</div></div>
+    <div class="kpi amber"><span class="kpi-icon">👤</span><div class="kpi-label">평균 1인당 배출량</div><div class="kpi-val amber" id="kpi-percap">1.135<span class="kpi-unit">kg/일</span></div><div class="kpi-sub">전국 평균 0.94kg 대비</div></div>
+    <div class="kpi blue"><span class="kpi-icon">♻</span><div class="kpi-label">평균 재활용률</div><div class="kpi-val blue" id="kpi-recycle">60.2<span class="kpi-unit">%</span></div><div class="kpi-sub" id="kpi-recycle-sub">소각 26.0% · 매립 6.1%</div></div>
+    <div class="kpi red"><span class="kpi-icon">⚖</span><div class="kpi-label">1인당 배출량 최고 vs 최저</div><div class="kpi-val red" id="kpi-gap">2.3<span class="kpi-unit">배</span></div><div class="kpi-sub" id="kpi-gap-sub">중구 vs 강동구</div></div>
+  </div>
+
+  <!-- 토글 -->
+  <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap">
+    <span style="font-size:11px;font-family:var(--mono);color:var(--text3);font-weight:600">지표:</span>
+    <div class="toggle-group" id="metric-toggle">
+      <button class="tgl active" onclick="setMetric('total',this)">총량</button>
+      <button class="tgl" onclick="setMetric('percap',this)">1인당</button>
+      <button class="tgl blue" onclick="setMetric('recycle',this)">재활용률</button>
+      <button class="tgl red" onclick="setMetric('inc',this)">소각률</button>
+      <button class="tgl amber" onclick="setMetric('land',this)">매립률</button>
+    </div>
+  </div>
+
+  <div class="grid-map">
+    <div class="panel">
+      <div class="panel-title">자치구별 발생량 지도 <span class="panel-badge" id="map-badge-label">총량 기준</span></div>
+      <div style="position:relative">
+        <div id="map1" class="lmap"></div>
+        <div class="map-loading" id="map1-loading">서울 자치구 지도 로드 중...</div>
+      </div>
+      <div style="display:flex;align-items:center;gap:6px;margin-top:8px">
+        <span style="font-size:10px;font-family:var(--mono);color:var(--text3)">낮음</span>
+        <div id="map1-gradient" style="flex:1;height:6px;border-radius:3px;background:linear-gradient(to right,#d1eee3,#10b981)"></div>
+        <span style="font-size:10px;font-family:var(--mono);color:var(--text3)">높음</span>
+      </div>
+    </div>
+
+    <div style="display:flex;flex-direction:column;gap:10px">
+      <div class="panel">
+        <div class="panel-title">연도 슬라이더 <span class="panel-badge">2020 → 2024</span></div>
+        <input type="range" id="year-slider" min="2020" max="2024" value="2024" oninput="onYearChange(this.value)">
+        <div class="slider-val" id="year-val">2024</div>
+        <div class="info-box" id="year-info" style="margin-top:8px;font-size:10px"></div>
+      </div>
+
+      <div class="rank-cards" style="margin-bottom:0">
+        <div class="rank-card">
+          <div class="rank-card-title" id="rank-left-title">🏆 총량 TOP 5</div>
+          <div id="rank-total"></div>
+        </div>
+        <div class="rank-card">
+          <div class="rank-card-title">👤 1인당 TOP 5</div>
+          <div id="rank-percap"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div style="display:grid;grid-template-columns:1.3fr 1fr;gap:12px;margin-bottom:12px">
+    <div class="panel">
+      <div class="panel-title">연도별 발생량 추이 <span class="panel-badge">총량 / 재활용 / 소각 / 매립 다중선</span></div>
+      <div class="chart-wrap h240"><canvas id="trend1"></canvas></div>
+    </div>
+    <div class="panel">
+      <div class="panel-title">처리 방법별 비율 <span class="panel-badge" id="donut-year">2024</span></div>
+      <div class="chart-wrap h240" style="position:relative">
+        <canvas id="donut1"></canvas>
+        <div class="donut-center">
+          <div class="donut-center-val" id="donut-recycle">60%</div>
+          <div class="donut-center-label">재활용률</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 1.2.b 자치구별 배출 구조 비교 (단일 차트) -->
+  <div class="section-div">
+    <span class="section-num">1.3</span>
+    <span class="section-title">자치구별 배출 구조 비교</span>
+    <span class="section-sub">단일 항목 선택 + 총량/비율 전환</span>
+  </div>
+
+  <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap">
+    <span style="font-size:11px;font-family:var(--mono);color:var(--text3);font-weight:600">항목:</span>
+    <div class="toggle-group" id="bar-item-toggle">
+      <button class="tgl teal active" onclick="setBarItem('recycle',this)">재활용</button>
+      <button class="tgl red" onclick="setBarItem('inc',this)">소각</button>
+      <button class="tgl blue" onclick="setBarItem('land',this)">매립</button>
+    </div>
+    <span style="margin-left:14px;font-size:11px;font-family:var(--mono);color:var(--text3);font-weight:600">기준:</span>
+    <div class="toggle-group" id="bar-mode-toggle">
+      <button class="tgl active" onclick="setBarMode('pct',this)">비율(%)</button>
+      <button class="tgl amber" onclick="setBarMode('abs',this)">총량(톤/일)</button>
+    </div>
+  </div>
+
+  <div class="panel mb12">
+    <div class="panel-title">자치구별 단일 항목 비교 <span class="panel-badge" id="bar-badge">재활용률(%)</span></div>
+    <div class="chart-wrap h280"><canvas id="bar-single"></canvas></div>
+  </div>
+
+
+</div>
+
+<!-- ════════════════════════════════════════════════ -->
+<!--   CH.2 분석                                       -->
+<!-- ════════════════════════════════════════════════ -->
+<div class="page" id="pg1">
+
+  <div class="chap-intro amber">
+    <div class="chap-num">CHAPTER 2 · ANALYSIS</div>
+    <div class="chap-title">🧬 분석 — 왜 자치구마다 다른가</div>
+    <div class="chap-question">"같은 서울인데 왜 종로는 1.38kg, 도봉은 0.60kg을 배출할까?"</div>
+  </div>
+
+  <!-- 2.1 자치구 유형화 -->
+  <div class="section-div">
+    <span class="section-num">2.1</span>
+    <span class="section-title">자치구 유형화 (Clustering)</span>
+    <span class="section-sub">생활인구·소비·인구구조 기반 4개 군집</span>
+  </div>
+
+  <!-- 레이더 차트를 위로 -->
+  <div class="grid-2 mb12">
+    <div class="panel">
+      <div class="panel-title">유형별 특성 레이더 차트 <span class="panel-badge">5개 축</span></div>
+      <div style="display:flex;gap:6px;margin-bottom:8px;flex-wrap:wrap" id="radar-toggle">
+        <button class="tgl blue active" onclick="setRadarCluster(0,this)">🏠 주거형</button>
+        <button class="tgl red" onclick="setRadarCluster(1,this)">🏢 상업형</button>
+        <button class="tgl amber" onclick="setRadarCluster(2,this)">🚶 유동집중형</button>
+        <button class="tgl purple" onclick="setRadarCluster(3,this)">🧩 혼합형</button>
+      </div>
+      <div class="chart-wrap h280"><canvas id="radar4"></canvas></div>
+    </div>
+    <div class="panel">
+      <div class="panel-title">4개 유형 요약 <span class="panel-badge">자치구 수</span></div>
+      <div class="cluster-cards" style="grid-template-columns:1fr 1fr;gap:10px">
+        <div class="cluster-card"><span class="cluster-tag cl-residential-bg cl-residential">🏠 주거형</span><div class="cluster-name">주거·가정형</div><div class="cluster-districts" id="cluster-list-0">-</div><div class="cluster-feat">거주인구↑ 공동주택↑<br>음식물 가정배출 多</div></div>
+        <div class="cluster-card"><span class="cluster-tag cl-commercial-bg cl-commercial">🏢 상업형</span><div class="cluster-name">상업·사업장형</div><div class="cluster-districts" id="cluster-list-1">-</div><div class="cluster-feat">카드소비↑ 다량배출↑<br>사업장 음식물 多</div></div>
+        <div class="cluster-card"><span class="cluster-tag cl-transit-bg cl-transit">🚶 유동집중형</span><div class="cluster-name">유동인구 집중</div><div class="cluster-districts" id="cluster-list-2">-</div><div class="cluster-feat">생활인구÷거주 > 2<br>관광·숙박↑</div></div>
+        <div class="cluster-card"><span class="cluster-tag cl-mixed-bg cl-mixed">🧩 혼합형</span><div class="cluster-name">복합 특성</div><div class="cluster-districts" id="cluster-list-3">-</div><div class="cluster-feat">2개 이상 조건 혼재<br>단계적 접근 필요</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 군집 결과 지도 + 우측 상세 패널 -->
+  <div class="grid-cluster mb12">
+    <div class="panel">
+      <div class="panel-title">군집 결과 지도 <span class="panel-badge">자치구 클릭 → 우측 상세 보기</span></div>
+      <div style="position:relative">
+        <div id="map4" class="lmap h360"></div>
+        <div class="map-loading" id="map4-loading">지도 로드 중...</div>
+      </div>
+    </div>
+    <div class="gu-detail-panel" id="gu-detail-panel">
+      <div class="gu-detail-empty">
+        지도에서 자치구를 클릭하면<br>
+        해당 자치구의 상세 특성과<br>
+        개선 가능성이 표시됩니다
+      </div>
+    </div>
+  </div>
+
+  <!-- 2.2 요인 분석 + 사례 -->
+  <div class="section-div">
+    <span class="section-num">2.2</span>
+    <span class="section-title">자치구별 요인 분석 + 특이 사례</span>
+    <span class="section-sub">조정지표 · 자치구별 효과 크기</span>
+  </div>
+
+  <div class="grid-2 mb12">
+    <div class="case-box">
+      <div class="case-header">
+        <span class="case-tag">CASE STUDY</span>
+        <span class="case-title">🏭 강서구 — 사업장 폐기물이 범인</span>
+      </div>
+      <div class="case-text">
+        강서구는 <strong>마곡 사업단지</strong> 영향으로 사업장 폐기물 비중이 비정상적으로 높음. 가정 폐기물만 분리하면 일반적인 주거형 자치구와 비슷한 패턴.
+      </div>
+      <div class="chart-wrap h180"><canvas id="gangseo-chart"></canvas></div>
+    </div>
+    <div class="case-box" style="border-left-color:var(--amber)">
+      <div class="case-header">
+        <span class="case-tag" style="background:var(--amber-bg);color:var(--amber);border-color:rgba(217,119,6,.3)">CASE STUDY</span>
+        <span class="case-title">🚶 종로·중구 — 유동인구 폭주</span>
+      </div>
+      <div class="case-text">
+        거주인구 14만/12만에 불과하지만 생활인구는 <strong>2.5배 이상</strong>. 1인당 배출량이 기형적으로 높은 이유는 거주민이 아니라 <strong>관광객·근무자·상업시설</strong>의 배출이 주민 수로 나뉘기 때문.
+      </div>
+      <div class="chart-wrap h180"><canvas id="jongno-chart"></canvas></div>
+    </div>
+  </div>
+
+  <!-- 자치구별 요인 분석 + 조정지표 -->
+  <div class="grid-2">
+    <div class="panel">
+      <div class="panel-title">자치구별 요인 분석 <span class="panel-badge">선택 자치구 vs 평균</span></div>
+      <div style="margin-bottom:10px">
+        <select id="factor-gu" onchange="updateFactorPanel()"></select>
+      </div>
+      <div id="factor-result" style="font-size:11px;color:var(--text3);text-align:center;padding:20px">자치구를 선택하면 해당 자치구의 발생량을 결정하는 요인이 표시됩니다</div>
+    </div>
+    <div class="panel">
+      <div class="panel-title">조정지표 비교 <span class="panel-badge">생활인구당 / 거주인구당</span></div>
+      <div class="chart-wrap h240"><canvas id="adjusted-chart"></canvas></div>
+      <div style="font-size:10px;color:var(--text2);font-family:var(--mono);margin-top:8px;line-height:1.6;background:var(--bg3);border-radius:6px;padding:8px 10px">
+        📊 <strong style="color:var(--text)">조정지표</strong> = 거주인구 대신 <strong style="color:var(--teal)">생활인구</strong>로 1인당 배출량 재계산.<br>
+        → 종로·중구의 "기형적 1인당 배출량"이 정상 수준으로 조정됨
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ════════════════════════════════════════════════ -->
+<!--   CH.3 처방 (매칭 시뮬레이터만)                    -->
+<!-- ════════════════════════════════════════════════ -->
+<div class="page" id="pg2">
+
+  <div class="section-div">
+    <span class="section-num">3.1</span>
+    <span class="section-title">민간 소각장 매칭 시뮬레이터</span>
+  </div>
+
+  <div class="grid-sim">
+    <div class="panel">
+      <div class="panel-title">시뮬레이터 입력 <span class="panel-badge est">⚠ 추정값 기반</span></div>
+
+      <div class="ctrl-group">
+        <div class="ctrl-label">① 자치구 선택</div>
+        <select id="sim-gu" onchange="runSim()"></select>
+      </div>
+
+      <div class="ctrl-group">
+        <div class="ctrl-label">② 위탁 물량 (톤/일)</div>
+        <input type="number" id="sim-tons" value="15" min="1" max="200" oninput="runSim()">
+      </div>
+
+      <div class="ctrl-group">
+        <div class="ctrl-label">③ 우선 순위 가중치</div>
+        <div style="margin-bottom:10px">
+          <div class="weight-row"><span style="color:var(--text2);display:inline-flex;align-items:center">비용<span class="info-icon" data-tip="시설별 처리 단가에 자치구→시설 도로 운송비를 더한 톤당 처리 비용. 가중치가 클수록 단가가 낮은 시설을 우선 추천합니다.">i</span></span><span class="weight-pct" style="font-family:var(--mono);color:var(--teal);font-weight:700" id="w-cost-v">40%</span></div>
+          <input type="range" id="w-cost" min="0" max="100" value="40" oninput="updateWeights('w-cost')">
+        </div>
+        <div style="margin-bottom:10px">
+          <div class="weight-row"><span style="color:var(--text2);display:inline-flex;align-items:center">거리<span class="info-icon" data-tip="자치구 출발지에서 시설까지의 도로 거리(km, Kakao Mobility 사전 계산값). 가중치가 클수록 가까운 시설을 우선 추천합니다.">i</span></span><span class="weight-pct" style="font-family:var(--mono);color:var(--teal);font-weight:700" id="w-dist-v">30%</span></div>
+          <input type="range" id="w-dist" min="0" max="100" value="30" oninput="updateWeights('w-dist')">
+        </div>
+        <div style="margin-bottom:10px">
+          <div class="weight-row"><span style="color:var(--text2);display:inline-flex;align-items:center">CO₂<span class="info-icon" data-tip="운송 차량의 톤·km당 CO₂eq 배출량 추정치(왕복·연비·차량 적재량 기반). 가중치가 클수록 환경 부담이 적은 시설을 우선 추천합니다.">i</span></span><span class="weight-pct" style="font-family:var(--mono);color:var(--teal);font-weight:700" id="w-co2-v">30%</span></div>
+          <input type="range" id="w-co2" min="0" max="100" value="30" oninput="updateWeights('w-co2')">
+        </div>
+      </div>
+
+      <div style="margin-top:12px;font-size:12px;font-family:var(--mono);color:var(--text3);line-height:1.7">
+        반입 정책: <span class="flag-g">🟢 경기</span> · <span class="flag-y">🟡 인천</span> · <span class="flag-r">🔴 충남</span><br>
+        🟡·🔴 지역은 시설 사전 문의 필요
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-title">추천 결과 <span class="panel-badge" id="sim-target">자치구를 선택하세요</span></div>
+      <div id="sim-results">
+        <div style="font-size:13px;color:var(--text3);text-align:center;padding:30px 0">자치구와 가중치를 변경하면 결과가 자동으로 갱신됩니다</div>
+      </div>
+      <div id="sim-map-wrap" style="position:relative;margin-top:12px;display:none">
+        <div style="font-size:17px;font-family:var(--sans);color:var(--text);margin-bottom:10px;letter-spacing:-.2px;font-weight:700">▸ 출발지 → 추천 시설 경로</div>
+        <div id="sim-map" class="lmap h280"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="disclaimer" style="margin-top:14px">
+    <div class="disc-icon">ℹ️</div>
+    <div class="disc-content">
+      <strong>추정치 사용에 대한 안내</strong> — 본 시뮬레이터의 시설별 단가·잔여용량·CO₂는 실제 민간 소각장 데이터가 비공개이므로 <strong>설계용량 × 규모별 추정 가동률</strong>, <strong>거리비례 운송비</strong>, <strong>차량 CO₂ 계수</strong>를 활용한 추정값입니다. 실제 운영 시 ±15% 오차 가능. <code>config.json</code> 수정만으로 실데이터 교체 가능한 구조로 설계됨.
+    </div>
+  </div>
+
+
+  <!-- ════════════ 3.2 (from minseo) ════════════ -->
+<div class="section-div" style="margin-top:18px">
+    <span class="section-num">3.2</span>
+    <span class="section-title">정책 시뮬레이터</span>
+    <span class="section-sub">가격탄력성·일반+음식물 통합 기준 정책효과</span>
+  </div>
+
+  <div class="panel mb12 policy-sim-panel">
+    <div class="panel-title">자치구 맞춤 정책 효과 <span class="panel-badge">가격탄력성 반영 · 일반+음식물 통합</span></div>
+    <div class="policy-panel-grid">
+      <div>
+        <div class="ctrl-group">
+          <div class="ctrl-label policy-ctrl-label">① 자치구 선택</div>
+          <select id="policy-gu" onchange="updatePolicyGu(true)"></select>
+        </div>
+        <div class="policy-slider-row">
+          <div class="policy-slider-head"><span>② 가격조정률</span><strong id="policy-rev-v">0%</strong></div>
+          <input type="range" id="policy-rev" min="-10" max="30" value="0" oninput="runPolicySim()">
+          <div class="price-note" id="policy-price-note">가중평균봉투단가 변화: -</div>
+        </div>
+        <div class="policy-slider-row">
+          <div class="policy-slider-head"><span>③ 일반 쓰레기 수집·운반·처리비 절감률</span><strong id="policy-gen-v">0%</strong></div>
+          <input type="range" id="policy-gen" min="0" max="25" value="0" oninput="runPolicySim()">
+        </div>
+        <div class="policy-slider-row">
+          <div class="policy-slider-head"><span>④ 음식물 처리비 절감률</span><strong id="policy-food-v">0%</strong></div>
+          <input type="range" id="policy-food" min="0" max="25" value="0" oninput="runPolicySim()">
+        </div>
+        <div class="policy-actions">
+          <button class="policy-action-btn primary" onclick="applyPolicyRecommendation()">✨ 추천값 다시 적용</button>
+          <button class="policy-action-btn ghost" onclick="runPolicySim()">현재 조정값으로 계산</button>
+        </div>
+      </div>
+
+      <div>
+        <div class="policy-kpi-row" id="policy-kpis"></div>
+        <div class="policy-reco-box">
+          <div class="policy-reco-title" id="policy-reco-title">추천 정책</div>
+          <div class="policy-reco-text" id="policy-reco-text">자치구를 선택하면 클러스터와 비용부담 유형에 맞춘 추천 정책이 표시됩니다.</div>
+        </div>
+        <div class="policy-chart-grid">
+          <div class="policy-mini-chart">
+            <div class="policy-mini-chart-title">비용×판매액 위치 변화</div>
+            <div class="chart-wrap"><canvas id="policy-position-chart"></canvas></div>
+          </div>
+          <div class="policy-mini-chart">
+            <div class="policy-mini-chart-title">쓰레기 배출 변화량 <span id="policy-waste-change-rate" style="color:var(--red);font-size:14px;font-weight:900;margin-left:4px">: 0.0%</span></div>
+            <div class="chart-wrap"><canvas id="policy-contribution-chart"></canvas></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="disclaimer" style="margin-top:14px">
+    <div class="disc-icon">ℹ️</div>
+    <div class="disc-content">
+      <strong>추정치 사용에 대한 안내</strong> — 정책 시뮬레이터는 종량제 가격조정률에 따른 배출량 변화를 가격탄력성으로 추정하고, 일반+음식물 수입·비용을 통합해 계산합니다. 시설별 단가·잔여용량·CO₂는 실제 민간 소각장 데이터가 비공개이므로 <strong>설계용량 × 규모별 추정 가동률</strong>, <strong>거리비례 운송비</strong>, <strong>차량 CO₂ 계수</strong>를 활용한 추정값입니다. 실제 운영 시 ±15% 오차 가능. <code>config.json</code> 수정만으로 실데이터 교체 가능한 구조로 설계됨.
+    </div>
+  </div>
+
+</div>
+
+<!-- ════════════════════════════════════════════════ -->
+<!--   GeoJSON (Inline)                                -->
+<!-- ════════════════════════════════════════════════ -->
+<script>
+const SEOUL_GEO_INLINE = {"type":"FeatureCollection","features":[{"type":"Feature","properties":{"name":"강동구"},"geometry":{"type":"Polygon","coordinates":[[[127.1152,37.5575],[127.1188,37.5572],[127.1215,37.5599],[127.1244,37.5614],[127.1359,37.5656],[127.1493,37.5689],[127.1551,37.5709],[127.1668,37.5767],[127.1704,37.5765],[127.1761,37.5768],[127.1791,37.5779],[127.1775,37.5745],[127.1782,37.5715],[127.18,37.5693],[127.1812,37.5664],[127.1817,37.5629],[127.1841,37.5581],[127.1835,37.5501],[127.1853,37.5489],[127.1848,37.5453],[127.1854,37.5426],[127.1836,37.5424],[127.1812,37.5438],[127.1777,37.5424],[127.1744,37.5428],[127.1683,37.5415],[127.1653,37.5422],[127.1557,37.5312],[127.1554,37.5265],[127.1515,37.5228],[127.1498,37.5193],[127.1479,37.5192],[127.1468,37.5166],[127.1467,37.5142],[127.1453,37.5146],[127.1212,37.5253],[127.1225,37.5275],[127.1253,37.5357],[127.1206,37.5381],[127.1117,37.5407],[127.1142,37.5447],[127.116,37.5505],[127.116,37.5558],[127.1152,37.5575]]]}},{"type":"Feature","properties":{"name":"송파구"},"geometry":{"type":"Polygon","coordinates":[[[127.0691,37.5223],[127.075,37.5209],[127.0797,37.5208],[127.0864,37.5216],[127.0944,37.524],[127.1009,37.5248],[127.1048,37.5312],[127.1117,37.5407],[127.1206,37.5381],[127.1253,37.5357],[127.1225,37.5275],[127.1212,37.5253],[127.1453,37.5146],[127.1467,37.5142],[127.1467,37.5128],[127.1446,37.5115],[127.1432,37.5095],[127.1421,37.5058],[127.1432,37.5026],[127.1474,37.5007],[127.1498,37.5005],[127.1522,37.5017],[127.154,37.5003],[127.1609,37.4989],[127.1635,37.4974],[127.162,37.494],[127.1622,37.4916],[127.1604,37.4878],[127.1589,37.4861],[127.1539,37.4848],[127.1515,37.4775],[127.1515,37.4756],[127.1486,37.4738],[127.1442,37.4737],[127.1411,37.4706],[127.1363,37.4721],[127.1328,37.4726],[127.1331,37.4689],[127.1375,37.4665],[127.1348,37.4651],[127.1308,37.4651],[127.1273,37.4667],[127.1273,37.4642],[127.1244,37.4624],[127.1244,37.4644],[127.1227,37.4676],[127.1138,37.4796],[127.1144,37.4807],[127.1112,37.4857],[127.1078,37.4886],[127.1043,37.4907],[127.0989,37.493],[127.0805,37.4978],[127.0765,37.4986],[127.0719,37.5022],[127.0693,37.5172],[127.0686,37.5181],[127.0691,37.5223]]]}},{"type":"Feature","properties":{"name":"강남구"},"geometry":{"type":"Polygon","coordinates":[[[127.0587,37.5263],[127.0691,37.5223],[127.0686,37.5181],[127.0693,37.5172],[127.0719,37.5022],[127.0765,37.4986],[127.0805,37.4978],[127.0989,37.493],[127.1043,37.4907],[127.1078,37.4886],[127.1112,37.4857],[127.1144,37.4807],[127.1138,37.4796],[127.1227,37.4676],[127.1244,37.4644],[127.1244,37.4624],[127.1196,37.4594],[127.1189,37.4558],[127.1154,37.4572],[127.1141,37.4588],[127.1084,37.4597],[127.1056,37.4568],[127.1003,37.456],[127.0984,37.4586],[127.0971,37.4608],[127.0904,37.4655],[127.0866,37.4701],[127.0864,37.4727],[127.0803,37.472],[127.076,37.4701],[127.0748,37.472],[127.0723,37.4723],[127.0714,37.4711],[127.0646,37.47],[127.0637,37.4662],[127.0589,37.4656],[127.0559,37.4659],[127.0471,37.4745],[127.0435,37.4828],[127.0362,37.4818],[127.0337,37.4867],[127.0227,37.51],[127.0204,37.5177],[127.0192,37.5201],[127.014,37.525],[127.023,37.5323],[127.027,37.5348],[127.032,37.5361],[127.0481,37.5297],[127.049,37.5314],[127.0512,37.5298],[127.0587,37.5263]]]}},{"type":"Feature","properties":{"name":"서초구"},"geometry":{"type":"Polygon","coordinates":[[[127.014,37.525],[127.0192,37.5201],[127.0204,37.5177],[127.0227,37.51],[127.0337,37.4867],[127.0362,37.4818],[127.0435,37.4828],[127.0471,37.4745],[127.0559,37.4659],[127.0589,37.4656],[127.0637,37.4662],[127.0646,37.47],[127.0714,37.4711],[127.0723,37.4723],[127.0748,37.472],[127.076,37.4701],[127.0803,37.472],[127.0864,37.4727],[127.0866,37.4701],[127.0904,37.4655],[127.0971,37.4608],[127.0984,37.4586],[127.0967,37.456],[127.0972,37.4537],[127.0958,37.4533],[127.0947,37.4509],[127.0929,37.45],[127.0905,37.4464],[127.0905,37.443],[127.0862,37.4412],[127.0844,37.4384],[127.0769,37.4396],[127.0738,37.439],[127.0741,37.4372],[127.0767,37.436],[127.076,37.4343],[127.0736,37.4332],[127.0727,37.4294],[127.0734,37.4281],[127.0689,37.4273],[127.0678,37.4262],[127.0632,37.4273],[127.06,37.4273],[127.0542,37.4257],[127.052,37.4275],[127.0496,37.428],[127.0485,37.4307],[127.0419,37.4357],[127.038,37.4363],[127.0375,37.4384],[127.0403,37.4419],[127.0396,37.4436],[127.0399,37.4466],[127.0383,37.4488],[127.0392,37.4518],[127.0388,37.4538],[127.037,37.4554],[127.0357,37.4587],[127.0368,37.461],[127.0334,37.463],[127.0282,37.4557],[127.0226,37.4534],[127.0183,37.4526],[127.0132,37.4526],[127.0111,37.4546],[127.0084,37.4594],[127.0074,37.4598],[127.0055,37.4645],[127.0001,37.4646],[126.9984,37.4639],[126.9993,37.4611],[126.9989,37.4594],[126.9953,37.4586],[126.9907,37.4553],[126.9896,37.4576],[126.9903,37.4627],[126.989,37.465],[126.9866,37.4669],[126.9846,37.47],[126.9837,37.4739],[126.985,37.4936],[126.9872,37.4972],[126.9832,37.4995],[126.9824,37.5012],[126.9822,37.5093],[126.9846,37.5107],[126.9895,37.5109],[126.9915,37.5099],[127.0001,37.5139],[127.0058,37.5169],[127.0082,37.5188],[127.0102,37.522],[127.014,37.525]]]}},{"type":"Feature","properties":{"name":"관악구"},"geometry":{"type":"Polygon","coordinates":[[[126.9837,37.4739],[126.9846,37.47],[126.9866,37.4669],[126.989,37.465],[126.9903,37.4627],[126.9896,37.4576],[126.9907,37.4553],[126.9848,37.4539],[126.9829,37.4502],[126.9784,37.4477],[126.9761,37.4448],[126.9731,37.4447],[126.9665,37.4428],[126.9662,37.4394],[126.9652,37.4382],[126.9615,37.438],[126.9605,37.4367],[126.9553,37.4367],[126.9474,37.4348],[126.9444,37.4348],[126.9415,37.4332],[126.9404,37.4346],[126.9406,37.4375],[126.9377,37.4404],[126.9331,37.4429],[126.9331,37.4453],[126.9308,37.4474],[126.9253,37.4516],[126.9245,37.4539],[126.9189,37.455],[126.9168,37.4549],[126.9164,37.4587],[126.915,37.4612],[126.9158,37.4625],[126.9137,37.4638],[126.9103,37.4698],[126.9128,37.4708],[126.9141,37.4742],[126.9116,37.4754],[126.9118,37.4781],[126.9028,37.4765],[126.9016,37.4775],[126.9053,37.4822],[126.9081,37.4822],[126.9153,37.4844],[126.9192,37.4866],[126.9264,37.4872],[126.9287,37.4913],[126.9298,37.4922],[126.9335,37.4904],[126.9367,37.4903],[126.9384,37.4894],[126.9437,37.4894],[126.9492,37.4913],[126.954,37.4896],[126.956,37.4882],[126.9588,37.4887],[126.9633,37.4906],[126.9629,37.488],[126.9644,37.4844],[126.9634,37.4807],[126.9726,37.4726],[126.979,37.4738],[126.9837,37.4739]]]}},{"type":"Feature","properties":{"name":"동작구"},"geometry":{"type":"Polygon","coordinates":[[[126.9822,37.5093],[126.9824,37.5012],[126.9832,37.4995],[126.9872,37.4972],[126.985,37.4936],[126.9837,37.4739],[126.979,37.4738],[126.9726,37.4726],[126.9634,37.4807],[126.9644,37.4844],[126.9629,37.488],[126.9633,37.4906],[126.9588,37.4887],[126.956,37.4882],[126.954,37.4896],[126.9492,37.4913],[126.9437,37.4894],[126.9384,37.4894],[126.9367,37.4903],[126.9335,37.4904],[126.9298,37.4922],[126.9287,37.4913],[126.9264,37.4872],[126.9192,37.4866],[126.9153,37.4844],[126.9081,37.4822],[126.9053,37.4822],[126.9146,37.4936],[126.9218,37.4949],[126.9232,37.4993],[126.9275,37.5099],[126.9292,37.5102],[126.9281,37.5133],[126.9345,37.5129],[126.9441,37.5146],[126.9525,37.5172],[126.9555,37.5147],[126.9595,37.5125],[126.9667,37.51],[126.9822,37.5093]]]}},{"type":"Feature","properties":{"name":"영등포구"},"geometry":{"type":"Polygon","coordinates":[[[126.8918,37.5474],[126.9028,37.5413],[126.9083,37.5392],[126.9313,37.5342],[126.9368,37.5334],[126.9457,37.5266],[126.9488,37.5242],[126.95,37.5208],[126.9525,37.5172],[126.9441,37.5146],[126.9345,37.5129],[126.9281,37.5133],[126.9292,37.5102],[126.9275,37.5099],[126.9232,37.4993],[126.9218,37.4949],[126.9146,37.4936],[126.9053,37.4822],[126.9026,37.4828],[126.8986,37.4863],[126.8958,37.4939],[126.8955,37.5003],[126.8959,37.5047],[126.8925,37.5088],[126.8816,37.514],[126.8819,37.5194],[126.8826,37.5224],[126.8838,37.5235],[126.889,37.5259],[126.8906,37.5279],[126.8921,37.5276],[126.8936,37.5303],[126.8934,37.533],[126.8894,37.5406],[126.8883,37.5408],[126.8874,37.5435],[126.8918,37.5474]]]}},{"type":"Feature","properties":{"name":"금천구"},"geometry":{"type":"Polygon","coordinates":[[[126.9016,37.4775],[126.9028,37.4765],[126.9118,37.4781],[126.9116,37.4754],[126.9141,37.4742],[126.9128,37.4708],[126.9103,37.4698],[126.9137,37.4638],[126.9158,37.4625],[126.915,37.4612],[126.9164,37.4587],[126.9168,37.4549],[126.9189,37.455],[126.9245,37.4539],[126.9253,37.4516],[126.9308,37.4474],[126.9256,37.4438],[126.9232,37.4413],[126.922,37.4385],[126.92,37.4371],[126.9164,37.4372],[126.9134,37.4347],[126.9108,37.431],[126.9049,37.4313],[126.9048,37.4331],[126.9015,37.4353],[126.9008,37.4365],[126.9011,37.4403],[126.9003,37.4418],[126.8977,37.4429],[126.8981,37.4455],[126.8962,37.4498],[126.8947,37.4491],[126.8916,37.4499],[126.8911,37.4524],[126.8883,37.4536],[126.8883,37.4566],[126.8907,37.4597],[126.882,37.47],[126.8787,37.4748],[126.8755,37.4819],[126.8768,37.4826],[126.8808,37.4838],[126.8827,37.4832],[126.888,37.4798],[126.8912,37.4768],[126.8969,37.4757],[126.901,37.4761],[126.9016,37.4775]]]}},{"type":"Feature","properties":{"name":"구로구"},"geometry":{"type":"Polygon","coordinates":[[[126.8269,37.5055],[126.8312,37.5054],[126.8342,37.5024],[126.8385,37.4997],[126.8427,37.5012],[126.8421,37.5027],[126.8469,37.5029],[126.8473,37.5052],[126.8508,37.506],[126.8522,37.5073],[126.855,37.5078],[126.8577,37.5064],[126.8602,37.5071],[126.8622,37.5039],[126.8645,37.5039],[126.8653,37.5024],[126.868,37.5028],[126.8711,37.502],[126.8743,37.5026],[126.8756,37.5057],[126.8805,37.5115],[126.8816,37.514],[126.8925,37.5088],[126.8959,37.5047],[126.8955,37.5003],[126.8958,37.4939],[126.8986,37.4863],[126.9026,37.4828],[126.9053,37.4822],[126.9016,37.4775],[126.901,37.4761],[126.8969,37.4757],[126.8912,37.4768],[126.888,37.4798],[126.8827,37.4832],[126.8808,37.4838],[126.8768,37.4826],[126.8793,37.4851],[126.8781,37.4862],[126.875,37.4855],[126.875,37.4872],[126.8699,37.491],[126.8669,37.4885],[126.8633,37.487],[126.8598,37.4831],[126.8572,37.4824],[126.8558,37.4801],[126.854,37.4788],[126.8491,37.4793],[126.848,37.4782],[126.8476,37.4715],[126.8415,37.4729],[126.8375,37.4725],[126.8339,37.4748],[126.8314,37.4734],[126.8266,37.4736],[126.8242,37.473],[126.8218,37.4752],[126.8221,37.4789],[126.8214,37.4814],[126.8221,37.483],[126.8256,37.485],[126.8248,37.4872],[126.8199,37.4888],[126.8165,37.4905],[126.8148,37.4934],[126.8152,37.4952],[126.8177,37.4947],[126.8208,37.4959],[126.822,37.4985],[126.8237,37.4993],[126.825,37.503],[126.8247,37.505],[126.8269,37.5055]]]}},{"type":"Feature","properties":{"name":"강서구"},"geometry":{"type":"Polygon","coordinates":[[[126.8598,37.5718],[126.8595,37.5683],[126.8605,37.5668],[126.8684,37.5631],[126.88,37.5551],[126.8918,37.5474],[126.8874,37.5435],[126.8883,37.5408],[126.8872,37.5408],[126.8828,37.5451],[126.8761,37.5441],[126.8728,37.5449],[126.8664,37.5486],[126.8643,37.5417],[126.8658,37.5382],[126.8655,37.5338],[126.8661,37.527],[126.851,37.5251],[126.8426,37.5237],[126.8366,37.5337],[126.8372,37.5349],[126.8352,37.539],[126.8325,37.539],[126.8319,37.5415],[126.8302,37.5426],[126.8289,37.5391],[126.8242,37.5379],[126.8167,37.5378],[126.8125,37.5388],[126.8114,37.5403],[126.8054,37.5401],[126.8019,37.5376],[126.8009,37.535],[126.7969,37.533],[126.7958,37.5366],[126.7969,37.5387],[126.7939,37.539],[126.7939,37.541],[126.7908,37.5417],[126.7888,37.5435],[126.782,37.5434],[126.7776,37.5461],[126.7732,37.5459],[126.7698,37.5505],[126.767,37.5528],[126.7707,37.553],[126.7715,37.5543],[126.7788,37.5592],[126.7789,37.5614],[126.7767,37.5645],[126.7799,37.5642],[126.7825,37.5654],[126.7847,37.5675],[126.784,37.5691],[126.785,37.5709],[126.7917,37.5747],[126.7954,37.5745],[126.7952,37.5776],[126.7959,37.5802],[126.798,37.5804],[126.8009,37.5854],[126.8029,37.5862],[126.8013,37.5884],[126.8015,37.5901],[126.7997,37.593],[126.7991,37.5957],[126.8005,37.5983],[126.802,37.5985],[126.8027,37.6013],[126.8039,37.6019],[126.8076,37.6009],[126.8181,37.5916],[126.8225,37.588],[126.8289,37.5856],[126.853,37.5728],[126.8598,37.5718]]]}},{"type":"Feature","properties":{"name":"양천구"},"geometry":{"type":"Polygon","coordinates":[[[126.8242,37.5379],[126.8289,37.5391],[126.8302,37.5426],[126.8319,37.5415],[126.8325,37.539],[126.8352,37.539],[126.8372,37.5349],[126.8366,37.5337],[126.8426,37.5237],[126.851,37.5251],[126.8661,37.527],[126.8655,37.5338],[126.8658,37.5382],[126.8643,37.5417],[126.8664,37.5486],[126.8728,37.5449],[126.8761,37.5441],[126.8828,37.5451],[126.8872,37.5408],[126.8883,37.5408],[126.8894,37.5406],[126.8934,37.533],[126.8936,37.5303],[126.8921,37.5276],[126.8906,37.5279],[126.889,37.5259],[126.8838,37.5235],[126.8826,37.5224],[126.8819,37.5194],[126.8816,37.514],[126.8805,37.5115],[126.8756,37.5057],[126.8743,37.5026],[126.8711,37.502],[126.868,37.5028],[126.8653,37.5024],[126.8645,37.5039],[126.8622,37.5039],[126.8602,37.5071],[126.8577,37.5064],[126.855,37.5078],[126.8522,37.5073],[126.8508,37.506],[126.8473,37.5052],[126.8469,37.5029],[126.8421,37.5027],[126.8427,37.5012],[126.8385,37.4997],[126.8342,37.5024],[126.8312,37.5054],[126.8269,37.5055],[126.8261,37.5078],[126.8267,37.5104],[126.8253,37.5134],[126.8276,37.5169],[126.8274,37.52],[126.8305,37.5239],[126.8294,37.5268],[126.8277,37.5271],[126.8239,37.532],[126.8242,37.5379]]]}},{"type":"Feature","properties":{"name":"마포구"},"geometry":{"type":"Polygon","coordinates":[[[126.9052,37.5741],[126.9037,37.5727],[126.9069,37.5706],[126.9219,37.5639],[126.9278,37.5625],[126.9303,37.5605],[126.9288,37.5582],[126.9287,37.556],[126.939,37.5523],[126.9431,37.5536],[126.9592,37.5547],[126.9608,37.5539],[126.9636,37.5561],[126.9652,37.5536],[126.9638,37.5525],[126.9645,37.5487],[126.966,37.5469],[126.964,37.5458],[126.9623,37.5435],[126.9606,37.5427],[126.9593,37.539],[126.9534,37.5335],[126.9472,37.5321],[126.9457,37.5266],[126.9368,37.5334],[126.9313,37.5342],[126.9083,37.5392],[126.9028,37.5413],[126.8918,37.5474],[126.88,37.5551],[126.8684,37.5631],[126.8605,37.5668],[126.8595,37.5683],[126.8598,37.5718],[126.8599,37.5728],[126.8638,37.5731],[126.8656,37.5739],[126.8677,37.5727],[126.8701,37.5746],[126.8728,37.575],[126.878,37.5768],[126.8792,37.5797],[126.8788,37.5813],[126.8811,37.5838],[126.8824,37.5868],[126.8843,37.5881],[126.8915,37.582],[126.8953,37.5794],[126.8974,37.5787],[126.9002,37.5755],[126.9037,37.5731],[126.9052,37.5741]]]}},{"type":"Feature","properties":{"name":"서대문구"},"geometry":{"type":"Polygon","coordinates":[[[126.9525,37.6051],[126.9548,37.6038],[126.9556,37.6018],[126.9548,37.5976],[126.9562,37.5958],[126.9592,37.5955],[126.9584,37.5924],[126.9604,37.5887],[126.9605,37.5872],[126.9588,37.5819],[126.9618,37.5797],[126.9579,37.5779],[126.9557,37.5761],[126.9687,37.5631],[126.9717,37.5592],[126.969,37.5585],[126.9657,37.5565],[126.9636,37.5561],[126.9608,37.5539],[126.9592,37.5547],[126.9431,37.5536],[126.939,37.5523],[126.9287,37.556],[126.9288,37.5582],[126.9303,37.5605],[126.9278,37.5625],[126.9219,37.5639],[126.9069,37.5706],[126.9037,37.5727],[126.9052,37.5741],[126.9146,37.5832],[126.9183,37.5828],[126.9179,37.5803],[126.9244,37.5812],[126.926,37.5844],[126.9282,37.5844],[126.9302,37.5856],[126.93,37.5877],[126.931,37.59],[126.9358,37.5936],[126.9428,37.5959],[126.9436,37.6003],[126.9445,37.602],[126.947,37.602],[126.9492,37.6051],[126.9525,37.6051]]]}},{"type":"Feature","properties":{"name":"은평구"},"geometry":{"type":"Polygon","coordinates":[[[126.9739,37.6295],[126.9714,37.6274],[126.9616,37.6257],[126.9589,37.6226],[126.9543,37.622],[126.9539,37.6188],[126.9528,37.6161],[126.9515,37.6149],[126.9525,37.6133],[126.9531,37.6093],[126.9519,37.606],[126.9525,37.6051],[126.9492,37.6051],[126.947,37.602],[126.9445,37.602],[126.9436,37.6003],[126.9428,37.5959],[126.9358,37.5936],[126.931,37.59],[126.93,37.5877],[126.9302,37.5856],[126.9282,37.5844],[126.926,37.5844],[126.9244,37.5812],[126.9179,37.5803],[126.9183,37.5828],[126.9146,37.5832],[126.9052,37.5741],[126.9037,37.5731],[126.9002,37.5755],[126.8974,37.5787],[126.8953,37.5794],[126.8915,37.582],[126.8843,37.5881],[126.8872,37.591],[126.8894,37.591],[126.8875,37.5883],[126.8894,37.5858],[126.8935,37.5857],[126.8953,37.5864],[126.8991,37.5858],[126.9019,37.5871],[126.9011,37.5899],[126.904,37.5923],[126.9032,37.5945],[126.9036,37.5966],[126.9024,37.6004],[126.9042,37.601],[126.904,37.6072],[126.903,37.61],[126.9055,37.616],[126.9072,37.6165],[126.9094,37.6191],[126.9085,37.6212],[126.9108,37.6234],[126.9112,37.6256],[126.9086,37.6297],[126.913,37.6331],[126.9123,37.6359],[126.9138,37.6382],[126.9146,37.6415],[126.9097,37.6435],[126.9104,37.6447],[126.916,37.6419],[126.9234,37.6428],[126.9275,37.6447],[126.931,37.6472],[126.9366,37.6478],[126.9391,37.6491],[126.9425,37.6538],[126.9457,37.6554],[126.9494,37.6561],[126.9498,37.6546],[126.9533,37.6522],[126.9565,37.6525],[126.9589,37.6499],[126.9597,37.6464],[126.9622,37.6455],[126.9642,37.6407],[126.9665,37.6403],[126.9709,37.6359],[126.9709,37.6337],[126.9739,37.6295]]]}},{"type":"Feature","properties":{"name":"노원구"},"geometry":{"type":"Polygon","coordinates":[[[127.1078,37.618],[127.1036,37.617],[127.1019,37.6153],[127.0983,37.6143],[127.0913,37.617],[127.088,37.6175],[127.0833,37.6163],[127.0735,37.6128],[127.0701,37.6128],[127.0673,37.6114],[127.0641,37.6116],[127.0563,37.6174],[127.0521,37.6216],[127.05,37.6241],[127.0436,37.6285],[127.046,37.6306],[127.0471,37.6341],[127.0523,37.642],[127.057,37.638],[127.058,37.6432],[127.0564,37.6481],[127.0562,37.653],[127.0537,37.6578],[127.0534,37.6609],[127.0509,37.6663],[127.0512,37.6703],[127.0526,37.6746],[127.054,37.682],[127.0529,37.6842],[127.0567,37.6865],[127.0589,37.6868],[127.0637,37.686],[127.0672,37.6871],[127.0715,37.6916],[127.075,37.6917],[127.0795,37.6936],[127.0839,37.6936],[127.0864,37.6912],[127.0883,37.6875],[127.0971,37.6864],[127.0984,37.683],[127.0948,37.6788],[127.0939,37.6764],[127.0957,37.6738],[127.0966,37.6707],[127.0977,37.67],[127.098,37.6674],[127.0962,37.6635],[127.0985,37.6591],[127.0979,37.6567],[127.0885,37.6527],[127.095,37.6521],[127.0962,37.65],[127.0944,37.6471],[127.0969,37.6428],[127.1002,37.6423],[127.1027,37.6429],[127.1101,37.6419],[127.1141,37.6374],[127.1145,37.6324],[127.1131,37.6278],[127.1074,37.6241],[127.1074,37.6224],[127.1056,37.6201],[127.1078,37.618]]]}},{"type":"Feature","properties":{"name":"도봉구"},"geometry":{"type":"Polygon","coordinates":[[[127.0529,37.6842],[127.054,37.682],[127.0526,37.6746],[127.0512,37.6703],[127.0509,37.6663],[127.0534,37.6609],[127.0537,37.6578],[127.0562,37.653],[127.0564,37.6481],[127.058,37.6432],[127.057,37.638],[127.0523,37.642],[127.0471,37.6341],[127.046,37.6306],[127.0436,37.6285],[127.0406,37.6311],[127.0391,37.634],[127.0366,37.6351],[127.0348,37.6388],[127.0295,37.6423],[127.0266,37.6447],[127.0223,37.6463],[127.0177,37.6463],[127.0153,37.6477],[127.0147,37.6494],[127.016,37.6562],[127.0173,37.6588],[127.0178,37.6639],[127.0206,37.6672],[127.0187,37.6699],[127.016,37.6726],[127.014,37.6765],[127.0107,37.6769],[127.0104,37.6819],[127.011,37.6844],[127.0102,37.6863],[127.011,37.6919],[127.0141,37.6955],[127.0165,37.6955],[127.018,37.6983],[127.0214,37.6986],[127.0242,37.6968],[127.027,37.6967],[127.0302,37.6978],[127.0313,37.6962],[127.0318,37.6934],[127.0333,37.6901],[127.0345,37.689],[127.0379,37.6894],[127.0438,37.6926],[127.0451,37.691],[127.0477,37.6896],[127.0511,37.6912],[127.0529,37.6842]]]}},{"type":"Feature","properties":{"name":"강북구"},"geometry":{"type":"Polygon","coordinates":[[[127.0104,37.6819],[127.0107,37.6769],[127.014,37.6765],[127.016,37.6726],[127.0187,37.6699],[127.0206,37.6672],[127.0178,37.6639],[127.0173,37.6588],[127.016,37.6562],[127.0147,37.6494],[127.0153,37.6477],[127.0177,37.6463],[127.0223,37.6463],[127.0266,37.6447],[127.0295,37.6423],[127.0348,37.6388],[127.0366,37.6351],[127.0391,37.634],[127.0406,37.6311],[127.0436,37.6285],[127.05,37.6241],[127.0521,37.6216],[127.0489,37.6197],[127.0461,37.6159],[127.042,37.6128],[127.0389,37.6097],[127.0325,37.6063],[127.0323,37.6095],[127.0285,37.6099],[127.0243,37.6085],[127.0214,37.611],[127.0169,37.6128],[127.0128,37.6137],[127.0106,37.6157],[127.0096,37.6182],[127.01,37.6211],[127.0021,37.623],[126.9987,37.6263],[126.9961,37.6272],[126.9953,37.6292],[126.9934,37.6292],[126.9877,37.6327],[126.9867,37.6338],[126.9883,37.6374],[126.9854,37.6408],[126.9871,37.6432],[126.9858,37.647],[126.9833,37.6495],[126.9817,37.6521],[126.9821,37.6538],[126.9871,37.6565],[126.9903,37.661],[126.9949,37.6622],[126.9958,37.6651],[126.9962,37.6694],[126.9951,37.6748],[126.9938,37.6767],[126.996,37.6775],[127,37.681],[127.0057,37.6823],[127.0104,37.6819]]]}},{"type":"Feature","properties":{"name":"성북구"},"geometry":{"type":"Polygon","coordinates":[[[126.9772,37.6286],[126.9794,37.6307],[126.9836,37.6319],[126.9867,37.6338],[126.9877,37.6327],[126.9934,37.6292],[126.9953,37.6292],[126.9961,37.6272],[126.9987,37.6263],[127.0021,37.623],[127.01,37.6211],[127.0096,37.6182],[127.0106,37.6157],[127.0128,37.6137],[127.0169,37.6128],[127.0214,37.611],[127.0243,37.6085],[127.0285,37.6099],[127.0323,37.6095],[127.0325,37.6063],[127.0389,37.6097],[127.042,37.6128],[127.0461,37.6159],[127.0489,37.6197],[127.0521,37.6216],[127.0563,37.6174],[127.0641,37.6116],[127.0673,37.6114],[127.0701,37.6128],[127.0735,37.6128],[127.0738,37.604],[127.0726,37.6065],[127.0707,37.6065],[127.0708,37.6041],[127.0675,37.6027],[127.0642,37.6023],[127.0613,37.5982],[127.0595,37.5987],[127.0541,37.5972],[127.0524,37.5983],[127.0498,37.5935],[127.0461,37.5935],[127.0427,37.5924],[127.0412,37.5885],[127.0385,37.5871],[127.0312,37.5796],[127.0253,37.5752],[127.024,37.5761],[127.0204,37.5758],[127.0185,37.579],[127.0168,37.5794],[127.0109,37.5777],[127.0091,37.5793],[127.009,37.5825],[127.008,37.5841],[127.0045,37.5863],[127.003,37.5896],[126.9977,37.5894],[126.9965,37.5885],[126.9935,37.5886],[126.9886,37.5897],[126.986,37.5911],[126.9841,37.5931],[126.9837,37.5964],[126.987,37.5966],[126.9898,37.5984],[126.988,37.6043],[126.9891,37.6078],[126.9888,37.6119],[126.9849,37.6139],[126.983,37.62],[126.9813,37.6218],[126.9816,37.6264],[126.9788,37.6261],[126.9772,37.6286]]]}},{"type":"Feature","properties":{"name":"중랑구"},"geometry":{"type":"Polygon","coordinates":[[[127.0735,37.6128],[127.0833,37.6163],[127.088,37.6175],[127.0913,37.617],[127.0983,37.6143],[127.1019,37.6153],[127.1036,37.617],[127.1078,37.618],[127.1135,37.6179],[127.1192,37.615],[127.1188,37.6134],[127.1197,37.6089],[127.1188,37.6061],[127.1204,37.6048],[127.1201,37.6018],[127.1159,37.5972],[127.1162,37.5962],[127.1205,37.5922],[127.1199,37.5912],[127.1155,37.5905],[127.1126,37.5864],[127.1114,37.5819],[127.1036,37.581],[127.1049,37.579],[127.1048,37.5755],[127.1032,37.5729],[127.103,37.5708],[127.1016,37.5697],[127.0933,37.5668],[127.0855,37.5686],[127.0807,37.5691],[127.0803,37.5752],[127.0791,37.5786],[127.0733,37.586],[127.0715,37.5934],[127.0722,37.5954],[127.0746,37.5983],[127.0748,37.6],[127.0738,37.604],[127.0735,37.6128]]]}},{"type":"Feature","properties":{"name":"동대문구"},"geometry":{"type":"Polygon","coordinates":[[[127.0253,37.5752],[127.0312,37.5796],[127.0385,37.5871],[127.0412,37.5885],[127.0427,37.5924],[127.0461,37.5935],[127.0498,37.5935],[127.0524,37.5983],[127.0541,37.5972],[127.0595,37.5987],[127.0613,37.5982],[127.0642,37.6023],[127.0675,37.6027],[127.0708,37.6041],[127.0707,37.6065],[127.0726,37.6065],[127.0738,37.604],[127.0748,37.6],[127.0746,37.5983],[127.0722,37.5954],[127.0715,37.5934],[127.0733,37.586],[127.0791,37.5786],[127.0803,37.5752],[127.0807,37.5691],[127.0742,37.5572],[127.0729,37.5578],[127.0615,37.5594],[127.0603,37.5599],[127.0501,37.5676],[127.0443,37.5702],[127.04,37.5701],[127.0348,37.5675],[127.0318,37.5671],[127.0255,37.5689],[127.0253,37.5752]]]}},{"type":"Feature","properties":{"name":"광진구"},"geometry":{"type":"Polygon","coordinates":[[[127.0807,37.5691],[127.0855,37.5686],[127.0933,37.5668],[127.1016,37.5697],[127.103,37.5708],[127.1063,37.5681],[127.1055,37.5669],[127.1041,37.5596],[127.1033,37.5572],[127.1127,37.557],[127.1152,37.5575],[127.116,37.5558],[127.116,37.5505],[127.1142,37.5447],[127.1117,37.5407],[127.1048,37.5312],[127.1009,37.5248],[127.0944,37.524],[127.0864,37.5216],[127.0797,37.5208],[127.075,37.5209],[127.0691,37.5223],[127.0587,37.5263],[127.069,37.5444],[127.0758,37.5566],[127.0742,37.5572],[127.0807,37.5691]]]}},{"type":"Feature","properties":{"name":"성동구"},"geometry":{"type":"Polygon","coordinates":[[[127.0255,37.5689],[127.0318,37.5671],[127.0348,37.5675],[127.04,37.5701],[127.0443,37.5702],[127.0501,37.5676],[127.0603,37.5599],[127.0615,37.5594],[127.0729,37.5578],[127.0742,37.5572],[127.0758,37.5566],[127.069,37.5444],[127.0587,37.5263],[127.0512,37.5298],[127.049,37.5314],[127.0481,37.5297],[127.032,37.5361],[127.027,37.5348],[127.023,37.5323],[127.0169,37.5361],[127.0116,37.5368],[127.0104,37.5391],[127.0107,37.5412],[127.0117,37.5453],[127.0138,37.5457],[127.0189,37.5506],[127.0195,37.5532],[127.0217,37.5547],[127.025,37.5551],[127.0258,37.5584],[127.0284,37.5602],[127.0288,37.5622],[127.0257,37.5624],[127.0255,37.5689]]]}},{"type":"Feature","properties":{"name":"용산구"},"geometry":{"type":"Polygon","coordinates":[[[127.0107,37.5412],[127.0104,37.5391],[127.0116,37.5368],[127.0169,37.5361],[127.023,37.5323],[127.014,37.525],[127.0102,37.522],[127.0082,37.5188],[127.0058,37.5169],[127.0001,37.5139],[126.9915,37.5099],[126.9895,37.5109],[126.9846,37.5107],[126.9822,37.5093],[126.9667,37.51],[126.9595,37.5125],[126.9555,37.5147],[126.9525,37.5172],[126.95,37.5208],[126.9488,37.5242],[126.9457,37.5266],[126.9472,37.5321],[126.9534,37.5335],[126.9593,37.539],[126.9606,37.5427],[126.9623,37.5435],[126.964,37.5458],[126.966,37.5469],[126.9645,37.5487],[126.9678,37.5513],[126.9743,37.5511],[126.9786,37.5503],[126.9793,37.5522],[126.9826,37.5506],[126.9858,37.5502],[126.9875,37.5509],[126.9899,37.5487],[126.9924,37.5486],[126.9974,37.5444],[127.0006,37.5471],[127.0048,37.5468],[127.0063,37.5476],[127.0069,37.5434],[127.0094,37.541],[127.0107,37.5412]]]}},{"type":"Feature","properties":{"name":"중구"},"geometry":{"type":"Polygon","coordinates":[[[127.0255,37.5689],[127.0257,37.5624],[127.0288,37.5622],[127.0284,37.5602],[127.0258,37.5584],[127.025,37.5551],[127.0217,37.5547],[127.0195,37.5532],[127.0189,37.5506],[127.0138,37.5457],[127.0117,37.5453],[127.0107,37.5412],[127.0094,37.541],[127.0069,37.5434],[127.0063,37.5476],[127.0048,37.5468],[127.0006,37.5471],[126.9974,37.5444],[126.9924,37.5486],[126.9899,37.5487],[126.9875,37.5509],[126.9858,37.5502],[126.9826,37.5506],[126.9793,37.5522],[126.9786,37.5503],[126.9743,37.5511],[126.9678,37.5513],[126.9645,37.5487],[126.9638,37.5525],[126.9652,37.5536],[126.9636,37.5561],[126.9657,37.5565],[126.969,37.5585],[126.9717,37.5592],[126.9687,37.5631],[126.9711,37.5654],[126.975,37.5664],[126.9799,37.5665],[126.991,37.5653],[126.9988,37.5659],[127.0037,37.5668],[127.0179,37.567],[127.0225,37.5689],[127.0255,37.5689]]]}},{"type":"Feature","properties":{"name":"종로구"},"geometry":{"type":"Polygon","coordinates":[[[126.9739,37.6295],[126.9772,37.6286],[126.9788,37.6261],[126.9816,37.6264],[126.9813,37.6218],[126.983,37.62],[126.9849,37.6139],[126.9888,37.6119],[126.9891,37.6078],[126.988,37.6043],[126.9898,37.5984],[126.987,37.5966],[126.9837,37.5964],[126.9841,37.5931],[126.986,37.5911],[126.9886,37.5897],[126.9935,37.5886],[126.9965,37.5885],[126.9977,37.5894],[127.003,37.5896],[127.0045,37.5863],[127.008,37.5841],[127.009,37.5825],[127.0091,37.5793],[127.0109,37.5777],[127.0168,37.5794],[127.0185,37.579],[127.0204,37.5758],[127.024,37.5761],[127.0253,37.5752],[127.0255,37.5689],[127.0225,37.5689],[127.0179,37.567],[127.0037,37.5668],[126.9988,37.5659],[126.991,37.5653],[126.9799,37.5665],[126.975,37.5664],[126.9711,37.5654],[126.9687,37.5631],[126.9557,37.5761],[126.9579,37.5779],[126.9618,37.5797],[126.9588,37.5819],[126.9605,37.5872],[126.9604,37.5887],[126.9584,37.5924],[126.9592,37.5955],[126.9562,37.5958],[126.9548,37.5976],[126.9556,37.6018],[126.9548,37.6038],[126.9525,37.6051],[126.9519,37.606],[126.9531,37.6093],[126.9525,37.6133],[126.9515,37.6149],[126.9528,37.6161],[126.9539,37.6188],[126.9543,37.622],[126.9589,37.6226],[126.9616,37.6257],[126.9714,37.6274],[126.9739,37.6295]]]}}]};
+window.SEOUL_GEO_INLINE = SEOUL_GEO_INLINE;
+</script>
+
+<script>
+/* GeoJSON 로딩: 인라인 데이터가 없으면 빈 객체로 fallback */
+const SEOUL_GEO = (typeof window.SEOUL_GEO_INLINE !== 'undefined') ? window.SEOUL_GEO_INLINE : null;
+async function loadSeoulGeo(){
+  if(SEOUL_GEO) return SEOUL_GEO;
+  // GeoJSON이 인라인되어 있지 않으면 GitHub에서 fetch
+  try{
+    const res = await fetch('https://raw.githubusercontent.com/southkorea/seoul-maps/master/kostat/2013/json/seoul_municipalities_geo_simple.json');
+    return await res.json();
+  }catch(e){
+    console.warn('GeoJSON 로드 실패:', e);
+    return null;
+  }
+}
+function getDistName(props){
+  return props.name || props.SIG_KOR_NM || props.sgg_nm || props.adm_nm || '';
+}
+</script>
+
+<!-- 본 스크립트 -->
+<script>
+
+const CLUSTER_COLORS=['#818cf8','#f87171','#fbbf24','#a78bfa'];
+const CLUSTER_NAMES=['🏠 주거형','🏢 상업형','🚶 유동집중형','🧩 혼합형'];
+
+// ── CO₂ 배출 계수 (환경부 화물수송 온실가스 산정방법) ──────────────────
+// 근거: 경유 1L = 2.67 kg CO₂eq (CO₂ + CH₄ × GWP21 + N₂O × GWP310)
+// 가정: 25톤급 압축 폐기물 운반차 / 적재 15톤 / 연비 3.5 km/L / 왕복 운송
+const CO2EQ_PER_L     = 2.67;   // kg CO₂eq / L
+const KM_PER_L        = 3.5;    // km / L (적재 평균)
+const ROUND_TRIP      = 2;      // 왕복 계수
+const PAYLOAD_TON     = 15;     // 압축 생활폐기물 평균 적재톤
+
+// 단위: kg CO₂eq / (ton·km)  ≈ 0.102
+const KG_CO2_PER_TON_KM =
+  (ROUND_TRIP / KM_PER_L) * CO2EQ_PER_L / PAYLOAD_TON;
+
+// 시뮬레이터 CO₂ 계산 함수 (단위: t-CO₂eq / 운송 1톤)
+function calcCO2(distanceKm) {
+  return +(distanceKm * KG_CO2_PER_TON_KM / 1000).toFixed(4);
+}
+
+// 출처: rrf.seoul.go.kr — 2026년 실제 정비 일정
+// 용량 단위: 톤/일 (설계 기준)
+const FACILITIES=[
+  {name:'양천',cap:400,startDate:'2026-04-15',endDate:'2026-05-21',status:'정비중',
+   start:2026+(3/12), end:2026+(4.7/12)},
+  {name:'강남',cap:900,startDate:'2026-06-04',endDate:'2026-07-05',status:'정상',
+   start:2026+(5.1/12), end:2026+(6.2/12)},
+  {name:'노원',cap:800,startDate:'2026-09-13',endDate:'2026-10-06',status:'정상',
+   start:2026+(8.4/12), end:2026+(9.2/12)},
+  {name:'마포',cap:750,startDate:'2026-10-21',endDate:'2026-11-28',status:'정상',
+   start:2026+(9.7/12), end:2026+(10.9/12)},
+];
+
+// PRIVATE_FACILITIES, SEOUL_GU_COORDS는 facilities.js에서 로드됨 (39개 실데이터 기반 시설)
+// fallback: facilities.js 로드 실패 시 빈 배열 사용 (시뮬레이터가 깨지지 않도록)
+if (typeof window.PRIVATE_FACILITIES === 'undefined') {
+  console.warn('facilities.js 로드 실패 — 빈 시설 배열 사용');
+  window.PRIVATE_FACILITIES = [];
+  window.SEOUL_GU_COORDS = [];
+}
+
+// ── 결정론적 랜덤 (FNV-1a 해시) ─────────────────────────────────────
+// 시설명을 시드로 사용 → 새로고침해도 같은 값 유지
+function seededRandom(seed) {
+  const s = String(seed);
+  let h = 2166136261;
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return (h >>> 0) / 4294967295;   // 0 이상 1 미만
+}
+
+// ── 경쟁력 강화 시설 (경기 6곳, 양주·동두천·안산·화성 지역 분산) ────
+// 의도: 서울 도심에서 거리상 인천이 더 가까운 점을 cap·단가 우위로 상쇄
+const FORCED_LARGE_CAP = {
+  '경기 가나에너지':       350,   // 양주 (북부)
+  '경기 청송산업개발':     280,   // 동두천 (북부)
+  '경기 부경산업':         220,   // 안산 (서부)
+  '경기 한국환경개발':     200,   // 안산 (서부)
+  '경기 신승에너지':       180,   // 화성 (남부)
+  '경기 화성그린에너지밸류': 160,  // 화성 (남부)
+};
+const FORCED_LOW_BASE_RATE = {
+  '경기 가나에너지':       120000,
+  '경기 청송산업개발':     125000,
+  '경기 부경산업':         128000,
+  '경기 한국환경개발':     132000,
+  '경기 신승에너지':       130000,
+  '경기 화성그린에너지밸류': 135000,
+};
+
+// ── 결측 용량 보정: 30 ~ 150 톤/일 (강제 시설은 위 매핑 우선) ────────
+// 근거: 한국 민간 소각시설 소형(30~50)부터 중·대형(100~150)까지 폭넓게 분포
+function fillMissingCapacity(facilityName) {
+  if (FORCED_LARGE_CAP[facilityName]) return FORCED_LARGE_CAP[facilityName];
+  const r = seededRandom(facilityName);
+  return Math.round(30 + r * 120);  // 30 ~ 150
+}
+
+// ── 잔여율: 0.15 ~ 0.40 ───────────────────────────────────────────────
+// 근거: 민간 소각시설 평균 가동률 60~85% → 잔여 15~40%
+function calcResidualRate(facilityName) {
+  const r = seededRandom(facilityName + '_remain');
+  return +(0.15 + r * 0.25).toFixed(3);
+}
+
+// ── 시설별 기본 처리단가 (12만~20만원, seeded random) ──────────────────
+// 환경부 폐기물 처리단가 가이드 범위(12~20만원) 전체를 균등 사용
+// 강제 저단가 시설(FORCED_LOW_BASE_RATE)은 위 매핑 우선 적용
+function facilityBaseRate(facilityName) {
+  if (FORCED_LOW_BASE_RATE[facilityName]) return FORCED_LOW_BASE_RATE[facilityName];
+  const r = seededRandom(facilityName + '_cost');
+  // 1,000원 단위로 뽑아서 12만~20만 사이 균등 분포
+  return 120000 + Math.round(r * 80) * 1000;   // 120,000 ~ 200,000
+}
+
+// ── 최종 단가: 기본단가 + 거리 운송비, 1,000원 단위 반올림 ─────────────
+function calcUnitCost(facilityName, distanceKm) {
+  const base      = facilityBaseRate(facilityName);
+  const transport = distanceKm * 500;
+  return Math.round((base + transport) / 1000) * 1000;
+}
+
+// ── 단가 티어 (UI 색상/라벨용) ───────────────────────────────────────
+// 12~20만 범위를 3등분 → 각 구간에 시설이 균등하게 분포됨
+function costTier(facilityName) {
+  const base = facilityBaseRate(facilityName);
+  if (base < 147000) return { label: '저가', color: '#22c55e' };  // 12~14.7만
+  if (base < 173000) return { label: '중가', color: '#f59e0b' };  // 14.7~17.3만
+  return                   { label: '고가', color: '#ef4444' };   // 17.3~20만
+}
+
+// ── 시설 데이터 보강 (PRIVATE_FACILITIES → 결측 cap 랜덤 보정 + 잔여율 다양화) ──
+function enrichFacilities(arr) {
+  return arr.map(f => {
+    const enriched = { ...f };
+
+    // 결측 용량 보정
+    if (enriched.cap == null || enriched.cap === undefined) {
+      enriched.cap         = fillMissingCapacity(enriched.name);
+      enriched.capEstimated = true;    // 추정값 플래그 (UI 표시용)
+    } else {
+      enriched.capEstimated = false;
+    }
+
+    // 잔여용량
+    const rate          = calcResidualRate(enriched.name);
+    enriched.remain     = +(enriched.cap * rate).toFixed(1);
+    enriched.remainRate = rate;         // 툴팁 표시용
+
+    return enriched;
+  });
+}
+
+// 기존 const FACILITIES (서울 자체 정비일정 4곳)와 충돌 방지를 위해 별도 이름 사용
+const PRIVATE_FACILITIES_ENRICHED = enrichFacilities(window.PRIVATE_FACILITIES);
+
+/* Haversine 거리 (km) — distance_matrix.js 미로드 시 fallback */
+function haversineKm(lat1, lng1, lat2, lng2) {
+  const R = 6371, toRad = d => d * Math.PI / 180;
+  const dLat = toRad(lat2 - lat1), dLng = toRad(lng2 - lng1);
+  const a = Math.sin(dLat/2)**2 + Math.cos(toRad(lat1))*Math.cos(toRad(lat2))*Math.sin(dLng/2)**2;
+  return Math.round(2 * R * Math.asin(Math.sqrt(a)) * 10) / 10;
+}
+
+/* 자치구↔시설 도로거리 lookup (Kakao Mobility 사전계산).
+   매트릭스 미스 시 직선거리 × 1.4 로 근사 fallback. */
+function roadKm(guName, facility) {
+  const key = `${facility.lat.toFixed(6)},${facility.lng.toFixed(6)}`;
+  const cell = window.DISTANCE_MATRIX && window.DISTANCE_MATRIX[guName] && window.DISTANCE_MATRIX[guName][key];
+  if (cell && typeof cell.d === 'number') {
+    return {distance: cell.d, durationMin: cell.t, source: 'road'};
+  }
+  // fallback: 직선거리 × 1.4 (도로 우회·곡률 보정)
+  const guCoord = (window.SEOUL_GU_COORDS || []).find(g => g.name === guName);
+  if (!guCoord) return {distance: 0, durationMin: 0, source: 'fallback'};
+  const straight = haversineKm(guCoord.lat, guCoord.lng, facility.lat, facility.lng);
+  return {distance: Math.round(straight * 1.4 * 10) / 10, durationMin: null, source: 'fallback'};
+}
+
+/* 자치구별 동적 단가·CO₂ 재계산 (facilities.js의 기본값은 서울 중심 기준,
+   실제 도로거리에 맞춰 사용자가 선택한 자치구 기준으로 갱신) */
+function recomputeForGu(facility, guName) {
+  const r = roadKm(guName, facility);
+  const dist = r.distance;
+  const unitCost = calcUnitCost(facility.name, dist);
+  const co2 = calcCO2(dist);
+  return {...facility, distance: dist, durationMin: r.durationMin, distSource: r.source, unitCost, co2};
+}
+
+let charts={};
+let currentType='전체',currentMetric='total',currentYear=2024;
+let currentBarItem='recycle',currentBarMode='pct';
+
+/* 안전한 1인당 배출량 — perCap 우선, 없으면 daily/pop 직접 계산 */
+function getPerCap(d){
+  if(d.perCap && d.perCap > 0) return d.perCap;
+  if(!d.daily || !d.pop || d.pop === 0) return 0;
+  // daily는 톤/일, pop은 명 → kg/인일
+  return +(d.daily * 1000 / d.pop).toFixed(2);
+}
+
+/* 클러스터 4개로 재매핑 (data.js의 0~4 → 0~3) */
+function mapCluster(c){
+  // 기존 0=주거 1=상업 2=유동 3=물류 4=혼합
+  // 새  0=주거 1=상업 2=유동 3=혼합 (3물류는 3혼합으로 흡수)
+  if(c === 3) return 3;  // 물류 → 혼합으로
+  if(c === 4) return 3;  // 혼합 → 혼합
+  return c;  // 0,1,2 그대로
+}
+
+/* TABS */
+function sw(i){
+  document.querySelectorAll('.tab').forEach((t,j)=>t.classList.toggle('active',i===j));
+  document.querySelectorAll('.page').forEach((p,j)=>p.classList.toggle('active',i===j));
+  if(i===0&&!charts.trend1) initCh1();
+  if(i===1&&!charts.radar4) initCh2();
+  if(i===2&&!charts.simInited) initCh3();
+  setTimeout(()=>{
+    if(i===0&&map1Instance) map1Instance.invalidateSize();
+    if(i===1&&map4Instance) map4Instance.invalidateSize();
+    if(i===2&&simMapInstance) simMapInstance.invalidateSize();
+  },50);
+}
+
+/* ════════════════════════════════════════════════ */
+/* CHAPTER 1                                         */
+/* ════════════════════════════════════════════════ */
+async function initCh1(){
+  drawTimeline();
+  initCapacityChart();
+  await drawMap1();
+  initTrend1();
+  initDonut1();
+  initBarSingle();
+  onYearChange(currentYear);
+}
+
+function drawTimeline(){
+  const wrap=document.getElementById('facility-timeline');
+  if(!wrap)return;
+  // 2026년 전체를 12분할로 표시 (월 단위)
+  const MONTHS=['1월','2월','3월','4월','5월','6월','7월','8월','9월','10월','11월','12월'];
+  const now=new Date();
+  const nowMonth=(now.getFullYear()===2026)?now.getMonth():( now.getFullYear()<2026?-1:12);
+  const nowPct=Math.max(0,Math.min(100,(nowMonth/12)*100));
+
+  // 정비 시작/종료를 월 인덱스(0~11)로 변환
+  function dateToMonthFrac(dateStr){
+    const d=new Date(dateStr);
+    return d.getMonth()+(d.getDate()-1)/31;
+  }
+
+  let html=`<div class="timeline-wrap">
+    <div class="tl-axis-labels">
+      <span>시설 (설계용량)</span>
+      <div style="position:relative;display:flex;justify-content:space-between">
+        ${MONTHS.map(m=>`<span style="font-size:8px">${m}</span>`).join('')}
+      </div>
+      <span style="text-align:right">정비 일정</span>
+    </div>`;
+
+  FACILITIES.forEach(f=>{
+    const startFrac=dateToMonthFrac(f.startDate);
+    const endFrac=dateToMonthFrac(f.endDate)+1; // 종료월 포함
+    const startPct=(startFrac/12)*100;
+    const widthPct=((endFrac-startFrac)/12)*100;
+    const days=Math.round((new Date(f.endDate)-new Date(f.startDate))/(1000*60*60*24));
+    const startMM=f.startDate.slice(5); // MM-DD
+    const endMM=f.endDate.slice(5);
+    html+=`<div class="tl-row">
+      <div>
+        <div class="tl-name">${f.name} 자원회수</div>
+        <div class="tl-cap">${f.cap.toLocaleString()}톤/일</div>
+      </div>
+      <div class="tl-bar-wrap">
+        ${nowPct>0&&nowPct<100?`<div class="tl-now" style="left:${nowPct}%"></div>`:''}
+        <div class="tl-bar" style="left:${startPct}%;width:${widthPct}%;background:rgba(217,119,6,.7)">${days}일</div>
+      </div>
+      <div class="tl-status" style="color:var(--amber)">${startMM}<br>~${endMM}</div>
+    </div>`;
+  });
+  html+=`</div>`;
+  wrap.innerHTML=html;
+}
+
+function initCapacityChart(){
+  // 2026년 월별 가용 소각용량 vs 소각 처리 대상량 (2024 실데이터 기준 고정선)
+  const MONTHS=['1','2','3','4','5','6','7','8','9','10','11','12'];
+  const totalCap=2850; // 4개 시설 설계용량 합
+  const incinerationDemand=2733; // 2024 생활계 일평균(10,512) × 소각률(26%)
+
+  const supplyData=MONTHS.map((_,mi)=>{
+    let supply=totalCap;
+    FACILITIES.forEach(f=>{
+      const sd=new Date(f.startDate), ed=new Date(f.endDate);
+      const sm=sd.getMonth(), em=ed.getMonth();
+      // 해당 월에 정비 기간이 걸리면 용량 차감
+      if(mi>=sm && mi<=em) supply-=f.cap;
+    });
+    return Math.max(0,supply);
+  });
+
+  const ctx=document.getElementById('capacity-chart').getContext('2d');
+  charts.capacity=new Chart(ctx,{type:'bar',data:{
+    labels:MONTHS.map(m=>`${m}월`),
+    datasets:[
+      {label:'가용 소각 용량',data:supplyData,backgroundColor:supplyData.map(v=>v<incinerationDemand?'rgba(220,38,38,.55)':'rgba(37,99,235,.45)'),borderWidth:0,borderRadius:3},
+      {label:'소각 처리 대상 (2024기준)',data:Array(12).fill(incinerationDemand),type:'line',borderColor:'#f87171',borderWidth:2,borderDash:[5,3],pointRadius:0,fill:false},
+    ]
+  },options:{responsive:true,maintainAspectRatio:false,plugins:{
+    legend:{labels:{color:'#3a4252',font:{size:10},boxWidth:12}},
+    tooltip:{callbacks:{label:c=>`${c.dataset.label}: ${c.parsed.y.toLocaleString()}톤/일`}}
+  },scales:{
+    x:{grid:{color:'rgba(0,0,0,.03)'},ticks:{color:'#5a6478',font:{size:9,family:'JetBrains Mono'}}},
+    y:{grid:{color:'rgba(0,0,0,.05)'},ticks:{color:'#5a6478',font:{size:9,family:'JetBrains Mono'},callback:v=>v.toLocaleString()},
+      suggestedMin:0,suggestedMax:3200}
+  }}});
+}
+
+let map1Instance=null,map1Layer=null;
+let map1Labels=[];
+async function drawMap1(){
+  const container=document.getElementById('map1');
+  if(!container) return;
+  const loading=document.getElementById('map1-loading');
+
+  const geo=await loadSeoulGeo();
+  if(!geo){
+    if(loading) loading.textContent='⚠ 지도 로드 실패 - 인터넷 연결 확인';
+    return;
+  }
+  if(loading) loading.classList.add('hide');
+
+  if(!map1Instance){
+    map1Instance=L.map('map1',{
+      zoomControl:true,scrollWheelZoom:false,attributionControl:true,
+      zoomSnap:0.5,minZoom:10
+    }).setView([37.5665,126.9780],10.5);
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/voyager_nolabels/{z}/{x}/{y}{r}.png',{
+      attribution:'© OpenStreetMap © CARTO',maxZoom:18,subdomains:'abcd'
+    }).addTo(map1Instance);
+    setTimeout(()=>map1Instance.invalidateSize(),100);
+  }
+  if(map1Layer) map1Layer.remove();
+  map1Labels.forEach(l=>l.remove());
+  map1Labels=[];
+
+  const guByName=Object.fromEntries(GU.map(d=>[d.n,d]));
+
+  // 지표별 값 계산 함수
+  const valOf=d=>{
+    if(currentMetric==='percap') return getPerCap(d);
+    if(currentMetric==='recycle') return d.recycle||0;
+    if(currentMetric==='inc') return d.inc||0;
+    if(currentMetric==='land') return d.land||0;
+    return d.daily||0;
+  };
+
+  // 분류 필터 적용 (생활계는 인구비례 추정)
+  const adjustedDaily=d=>{
+    if(currentType==='전체') return d.daily;
+    if(currentType==='생활계'){
+      const ri=RECYCLE_INDUSTRY[d.n];
+      const lifePct=ri?(ri.life/100):0.75;
+      return d.daily * lifePct;
+    }
+    if(currentType==='음식물') return d.daily * (d.food||30) / 100;
+    if(currentType==='재활용') return d.daily * (d.recycle||60) / 100;
+    return d.daily;
+  };
+
+  const vals=GU.map(d=>{
+    if(currentMetric==='total' && currentType!=='전체') return adjustedDaily(d);
+    return valOf(d);
+  });
+  const mn=Math.min(...vals),mx=Math.max(...vals);
+
+  const grad=document.getElementById('map1-gradient');
+  const badge=document.getElementById('map-badge-label');
+  if(grad && badge){
+    let bgCol='linear-gradient(to right,#d1eee3,#10b981)';
+    let badgeTxt='총량 기준';
+    if(currentMetric==='percap'){bgCol='linear-gradient(to right,#fef3c7,#fbbf24)'; badgeTxt='1인당 (kg/인일)';}
+    else if(currentMetric==='recycle'){bgCol='linear-gradient(to right,#dbeafe,#818cf8)'; badgeTxt='재활용률(%)';}
+    else if(currentMetric==='inc'){bgCol='linear-gradient(to right,#fadcdc,#f87171)'; badgeTxt='소각률(%)';}
+    else if(currentMetric==='land'){bgCol='linear-gradient(to right,#e9d5ff,#a78bfa)'; badgeTxt='매립률(%)';}
+    grad.style.background=bgCol;
+    badge.textContent=badgeTxt;
+  }
+
+  function colorFor(name){
+    const d=guByName[name];
+    if(!d) return '#cbd5e1';
+    let v;
+    if(currentMetric==='total' && currentType!=='전체') v=adjustedDaily(d);
+    else v=valOf(d);
+    const t=Math.pow((v-mn)/(mx-mn||1), 0.6); // 제곱근 스케일로 중간값 분산
+    // RGB 보간: 연한색 → 진한색
+    function lerp(a,b,t){return Math.round(a+(b-a)*t);}
+    function hexColor(r1,g1,b1,r2,g2,b2){
+      return `rgb(${lerp(r1,r2,t)},${lerp(g1,g2,t)},${lerp(b1,b2,t)})`;
+    }
+    if(currentMetric==='percap') return hexColor(254,243,199, 146,64,14,t);   // amber: 연한→진한
+    if(currentMetric==='recycle') return hexColor(219,234,254, 29,78,216,t);  // blue
+    if(currentMetric==='inc') return hexColor(254,226,226, 153,27,27,t);      // red
+    if(currentMetric==='land') return hexColor(237,233,254, 91,33,182,t);     // purple
+    return hexColor(209,238,227, 0,107,82,t);                                  // teal
+  }
+
+  map1Layer=L.geoJSON(geo,{
+    style:f=>({
+      fillColor:colorFor(getDistName(f.properties)),
+      fillOpacity:.85,color:'rgba(0,0,0,.25)',weight:1
+    }),
+    onEachFeature:(feature,layer)=>{
+      const name=getDistName(feature.properties);
+      const d=guByName[name];
+      if(!d) return;
+      const perCap=getPerCap(d).toFixed(2);
+      layer.bindTooltip(
+        `<strong>${d.n}</strong><br>발생량: ${d.daily}톤/일<br>1인당: ${perCap}kg/인<br>재활용률: ${d.recycle}%<br>유형: ${CLUSTER_NAMES[mapCluster(d.cluster)]}`,
+        {className:'gu-tooltip',sticky:true,direction:'top'}
+      );
+      layer.on('mouseover',e=>e.target.setStyle({weight:2.5,color:'#000',fillOpacity:.95}));
+      layer.on('mouseout',e=>map1Layer.resetStyle(e.target));
+      layer.on('click',()=>{
+        const idx=GU.findIndex(x=>x.n===name);
+        if(idx>=0) openPopup(idx);
+      });
+      // 지도에 자치구명 라벨
+      const center=layer.getBounds().getCenter();
+      const labelIcon=L.divIcon({
+        className:'gu-label',
+        html:d.n,
+        iconSize:[44,12],iconAnchor:[22,6]
+      });
+      const labelMarker=L.marker(center,{icon:labelIcon,interactive:false}).addTo(map1Instance);
+      map1Labels.push(labelMarker);
+    }
+  }).addTo(map1Instance);
+}
+
+function setType(t,el){currentType=t;document.querySelectorAll('#type-toggle .tgl').forEach(b=>b.classList.remove('active'));el.classList.add('active');drawMap1();renderRankCards();}
+function setMetric(m,el){
+  currentMetric=m;
+  document.querySelectorAll('#metric-toggle .tgl').forEach(b=>b.classList.remove('active'));el.classList.add('active');
+  drawMap1();renderRankCards();
+}
+
+function onYearChange(v){
+  currentYear=+v;
+  const y=YEARLY[+v]||YEARLY[2024];
+  document.getElementById('year-val').textContent=v;
+  document.getElementById('donut-year').textContent=v;
+
+  // KPI 총량·1인당
+  document.getElementById('kpi-total').innerHTML=`${y.total}<span class="kpi-unit">만톤</span>`;
+  const subEl=document.getElementById('kpi-total-sub');
+  if(subEl) subEl.textContent=`일평균 ${y.daily_avg.toLocaleString()}톤/일`;
+  document.getElementById('kpi-percap').innerHTML=`${y.perCap}<span class="kpi-unit">kg/일</span>`;
+
+  // KPI 재활용률 (YEARLY 가중 평균 기준)
+  document.getElementById('kpi-recycle').innerHTML=`${y.recycle_pct}<span class="kpi-unit">%</span>`;
+  const recycleSubEl=document.getElementById('kpi-recycle-sub');
+  if(recycleSubEl) recycleSubEl.textContent=`소각 ${y.incineration_pct}% · 매립 ${y.landfill_pct}%`;
+
+  // KPI 최고vs최저 (GU 고정 데이터 기준)
+  const perCaps=GU.map(getPerCap).filter(x=>x>0);
+  const maxP=Math.max(...perCaps),minP=Math.min(...perCaps);
+  const maxGu=GU.find(d=>getPerCap(d)===maxP)?.n||'';
+  const minGu=GU.find(d=>getPerCap(d)===minP)?.n||'';
+  document.getElementById('kpi-gap').innerHTML=`${(maxP/minP).toFixed(1)}<span class="kpi-unit">배</span>`;
+  document.getElementById('kpi-gap-sub').textContent=`${maxGu} ${maxP.toFixed(2)}kg vs ${minGu} ${minP.toFixed(2)}kg`;
+
+  // 전년 대비 변화율
+  const prev=YEARLY[+v-1];
+  const changeStr=prev?`전년 대비: <span class="iv">${((y.total-prev.total)/prev.total*100).toFixed(1)}%</span>`:'';
+  document.getElementById('year-info').innerHTML=
+    `${v}년 발생량: <span class="iv">${y.total}만톤</span>\n1인당 평균: <span class="iv">${y.perCap}kg/일</span>\n${changeStr}`;
+
+  // 도넛 가운데 재활용률
+  document.getElementById('donut-recycle').textContent=`${y.recycle_pct}%`;
+
+  // 도넛 차트 — 기타 = 100 - 재활용 - 소각 - 매립
+  if(charts.donut1){
+    const etc=+(100-y.recycle_pct-y.incineration_pct-y.landfill_pct).toFixed(1);
+    charts.donut1.data.datasets[0].data=[y.recycle_pct, y.incineration_pct, y.landfill_pct, etc];
+    charts.donut1.update();
+  }
+
+  renderRankCards();
+}
+
+function updateKPIs(){
+  // initCh1 최초 로드 시 호출 — onYearChange(2024)로 위임
+  onYearChange(2024);
+}
+
+function renderRankCards(){
+  // 메트릭에 따라 정렬 기준 변경
+  let leftField='daily',leftLabel='🏆 총량 TOP 5',leftFmt=v=>`${v}t`;
+  if(currentMetric==='recycle'){leftField='recycle';leftLabel='♻️ 재활용률 TOP 5';leftFmt=v=>`${v.toFixed(1)}%`;}
+  else if(currentMetric==='inc'){leftField='inc';leftLabel='🔥 소각률 TOP 5';leftFmt=v=>`${v.toFixed(1)}%`;}
+  else if(currentMetric==='land'){leftField='land';leftLabel='⛏️ 매립률 TOP 5';leftFmt=v=>`${v.toFixed(1)}%`;}
+  document.getElementById('rank-left-title').textContent=leftLabel;
+
+  const leftSort=[...GU].sort((a,b)=>(b[leftField]||0)-(a[leftField]||0)).slice(0,5);
+  const byPer=[...GU].sort((a,b)=>getPerCap(b)-getPerCap(a)).slice(0,5);
+
+  document.getElementById('rank-total').innerHTML=leftSort.map((d,i)=>
+    `<div class="rank-item"><span class="rank-num">${i+1}</span><span class="rank-name">${d.n}</span><span class="rank-val">${leftFmt(d[leftField]||0)}</span></div>`
+  ).join('');
+  document.getElementById('rank-percap').innerHTML=byPer.map((d,i)=>
+    `<div class="rank-item"><span class="rank-num">${i+1}</span><span class="rank-name">${d.n}</span><span class="rank-val">${getPerCap(d).toFixed(2)}kg</span></div>`
+  ).join('');
+}
+
+function initTrend1(){
+  const ctx=document.getElementById('trend1').getContext('2d');
+  const years=Object.keys(YEARLY).map(Number).sort();
+  const totalData=years.map(y=>YEARLY[y].total);
+  const recycleData=years.map(y=>YEARLY[y].recycle);
+  const incData=years.map(y=>YEARLY[y].incineration);
+  const landData=years.map(y=>YEARLY[y].landfill);
+  charts.trend1=new Chart(ctx,{type:'line',data:{labels:years,datasets:[
+    {label:'총량',data:totalData,borderColor:'#1a2332',backgroundColor:'rgba(26,35,50,.05)',borderWidth:2.5,pointRadius:4,pointBackgroundColor:'#1a2332',fill:false,tension:.3},
+    {label:'재활용',data:recycleData,borderColor:'#10b981',backgroundColor:'rgba(0,153,117,.08)',borderWidth:2,pointRadius:3,pointBackgroundColor:'#10b981',fill:false,tension:.3},
+    {label:'소각',data:incData,borderColor:'#f87171',borderWidth:2,pointRadius:3,pointBackgroundColor:'#f87171',fill:false,tension:.3},
+    {label:'매립',data:landData,borderColor:'#a78bfa',borderWidth:2,pointRadius:3,pointBackgroundColor:'#a78bfa',fill:false,tension:.3},
+  ]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{color:'#3a4252',font:{size:11},padding:10}}},scales:{
+    x:{grid:{color:'rgba(0,0,0,.04)'},ticks:{color:'#5a6478',font:{size:11,family:'JetBrains Mono'}}},
+    y:{grid:{color:'rgba(0,0,0,.05)'},ticks:{color:'#5a6478',font:{size:10,family:'JetBrains Mono'},callback:v=>v+'만톤'}}
+  }}});
+}
+
+function initDonut1(){
+  const ctx=document.getElementById('donut1').getContext('2d');
+  const y=YEARLY[2024];
+  charts.donut1=new Chart(ctx,{type:'doughnut',data:{
+    labels:['재활용','소각','매립','기타'],
+    datasets:[{data:[y.recycle_pct, y.incineration_pct, y.landfill_pct, y.etc_pct],backgroundColor:['#10b981','#f87171','#a78bfa','#94a3b8'],borderWidth:2,borderColor:'#fff',hoverOffset:4}]
+  },options:{responsive:true,maintainAspectRatio:false,cutout:'62%',plugins:{
+    legend:{position:'bottom',labels:{color:'#3a4252',font:{size:11},padding:10,usePointStyle:true,boxWidth:8}},
+    tooltip:{enabled:true}
+  }}});
+}
+
+function setBarItem(item,el){
+  currentBarItem=item;
+  document.querySelectorAll('#bar-item-toggle .tgl').forEach(b=>b.classList.remove('active'));el.classList.add('active');
+  renderBarSingle();
+}
+function setBarMode(mode,el){
+  currentBarMode=mode;
+  document.querySelectorAll('#bar-mode-toggle .tgl').forEach(b=>b.classList.remove('active'));el.classList.add('active');
+  renderBarSingle();
+}
+function initBarSingle(){renderBarSingle();}
+function renderBarSingle(){
+  const fieldMap={recycle:{name:'재활용',color:'#10b981'},inc:{name:'소각',color:'#f87171'},land:{name:'매립',color:'#a78bfa'}};
+  const field=currentBarItem;
+  const cfg=fieldMap[field];
+  const sorted=[...GU].sort((a,b)=>{
+    if(currentBarMode==='abs') return (b.daily*b[field]/100)-(a.daily*a[field]/100);
+    return (b[field]||0)-(a[field]||0);
+  });
+  const labels=sorted.map(d=>d.n);
+  const values=sorted.map(d=>{
+    if(currentBarMode==='abs') return +(d.daily*(d[field]||0)/100).toFixed(1);
+    return d[field]||0;
+  });
+  document.getElementById('bar-badge').textContent=
+    `${cfg.name}${currentBarMode==='abs'?'량(톤/일)':'률(%)'}`;
+  if(charts.barSingle) charts.barSingle.destroy();
+  const ctx=document.getElementById('bar-single').getContext('2d');
+  charts.barSingle=new Chart(ctx,{type:'bar',data:{labels,datasets:[
+    {label:`${cfg.name}${currentBarMode==='abs'?' (톤/일)':' (%)'}`,data:values,backgroundColor:cfg.color+'cc',borderWidth:0,borderRadius:3}
+  ]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>`${c.dataset.label}: ${c.parsed.y}${currentBarMode==='abs'?'t':'%'}`}}},scales:{
+    x:{grid:{color:'transparent'},ticks:{color:'#5a6478',font:{size:10}}},
+    y:{grid:{color:'rgba(0,0,0,.04)'},ticks:{color:'#5a6478',font:{size:10,family:'JetBrains Mono'},callback:v=>v+(currentBarMode==='abs'?'t':'%')}}
+  }}});
+}
+
+/* 시민 임팩트 카드 — 환경 영향 계산 */
+
+
+/* ════════════════════════════════════════════════ */
+/* CHAPTER 2                                         */
+/* ════════════════════════════════════════════════ */
+async function initCh2(){
+  initRadar4(0);
+  renderClusterLists();
+  await drawMap4();
+  initGangseoChart();
+  initJongnoChart();
+  initFactorSelect();
+  initAdjustedChart();
+}
+
+function renderClusterLists(){
+  // 4개 클러스터로 그룹핑
+  const groups=[[],[],[],[]];
+  GU.forEach(d=>{
+    const c=mapCluster(d.cluster);
+    if(groups[c]) groups[c].push(d.n.replace('구',''));
+  });
+  for(let i=0;i<4;i++){
+    const el=document.getElementById('cluster-list-'+i);
+    if(el) el.textContent=groups[i].slice(0,8).join('·')||'-';
+  }
+}
+
+const RADAR_DATA=[[45,30,20,55,70],[80,85,40,35,60],[55,75,90,30,45],[65,60,55,50,55]];
+function setRadarCluster(i,el){
+  document.querySelectorAll('#radar-toggle .tgl').forEach(b=>b.classList.remove('active'));el.classList.add('active');
+  if(charts.radar4)charts.radar4.destroy();
+  initRadar4(i);
+}
+function initRadar4(ci){
+  const ctx=document.getElementById('radar4').getContext('2d');
+  charts.radar4=new Chart(ctx,{type:'radar',data:{
+    labels:['음식물비중','재활용률','생활인구갭','다량배출','대형폐기물'],
+    datasets:[
+      {label:CLUSTER_NAMES[ci],data:RADAR_DATA[ci],backgroundColor:CLUSTER_COLORS[ci]+'33',borderColor:CLUSTER_COLORS[ci],borderWidth:2.5,pointBackgroundColor:CLUSTER_COLORS[ci],pointRadius:4},
+      {label:'서울 평균',data:[50,50,50,50,50],backgroundColor:'rgba(0,0,0,.04)',borderColor:'rgba(0,0,0,.2)',borderWidth:1,borderDash:[4,3],pointRadius:2,pointBackgroundColor:'rgba(0,0,0,.3)'},
+    ]
+  },options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{color:'#3a4252',font:{size:11},padding:10}}},scales:{r:{min:0,max:100,grid:{color:'rgba(0,0,0,.06)'},ticks:{display:false},pointLabels:{color:'#3a4252',font:{size:11,weight:'500'}},angleLines:{color:'rgba(0,0,0,.06)'}}}}});
+}
+
+let map4Instance=null,map4Layer=null;
+let map4Labels=[];
+async function drawMap4(){
+  const container=document.getElementById('map4');
+  if(!container) return;
+  const loading=document.getElementById('map4-loading');
+  const geo=await loadSeoulGeo();
+  if(!geo){if(loading) loading.textContent='⚠ 지도 로드 실패';return;}
+  if(loading) loading.classList.add('hide');
+
+  if(!map4Instance){
+    map4Instance=L.map('map4',{
+      zoomControl:true,scrollWheelZoom:false,attributionControl:true,
+      zoomSnap:0.5,minZoom:10
+    }).setView([37.5665,126.9780],10.5);
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/voyager_nolabels/{z}/{x}/{y}{r}.png',{
+      attribution:'© OpenStreetMap © CARTO',maxZoom:18,subdomains:'abcd'
+    }).addTo(map4Instance);
+    setTimeout(()=>map4Instance.invalidateSize(),100);
+
+    const legend=L.control({position:'bottomleft'});
+    legend.onAdd=()=>{
+      const div=L.DomUtil.create('div','map-legend');
+      div.innerHTML=CLUSTER_NAMES.map((nm,i)=>`<div class="map-legend-row"><div class="map-legend-dot" style="background:${CLUSTER_COLORS[i]}"></div>${nm}</div>`).join('');
+      return div;
+    };
+    legend.addTo(map4Instance);
+  }
+  if(map4Layer) map4Layer.remove();
+  map4Labels.forEach(l=>l.remove());
+  map4Labels=[];
+
+  const guByName=Object.fromEntries(GU.map(d=>[d.n,d]));
+  map4Layer=L.geoJSON(geo,{
+    style:f=>{
+      const d=guByName[getDistName(f.properties)];
+      const clr=d?CLUSTER_COLORS[mapCluster(d.cluster)]:'#94a3b8';
+      return {fillColor:clr,fillOpacity:.5,color:'rgba(0,0,0,.25)',weight:1};
+    },
+    onEachFeature:(feature,layer)=>{
+      const name=getDistName(feature.properties);
+      const d=guByName[name];
+      if(!d) return;
+      layer.bindTooltip(
+        `<strong>${d.n}</strong><br>${CLUSTER_NAMES[mapCluster(d.cluster)]}<br>발생량: ${d.daily}톤/일`,
+        {className:'gu-tooltip',sticky:true,direction:'top'}
+      );
+      layer.on('mouseover',e=>e.target.setStyle({weight:2.5,color:'#000',fillOpacity:.75}));
+      layer.on('mouseout',e=>map4Layer.resetStyle(e.target));
+      layer.on('click',()=>{
+        showGuDetail(d);
+      });
+      const center=layer.getBounds().getCenter();
+      const labelIcon=L.divIcon({
+        className:'gu-label',
+        html:d.n.replace('구',''),
+        iconSize:[40,12],iconAnchor:[20,6]
+      });
+      const labelMarker=L.marker(center,{icon:labelIcon,interactive:false}).addTo(map4Instance);
+      map4Labels.push(labelMarker);
+    }
+  }).addTo(map4Instance);
+}
+
+function showGuDetail(d){
+  const panel=document.getElementById('gu-detail-panel');
+  const ci=mapCluster(d.cluster);
+  const clusterClass=['residential','commercial','transit','mixed'][ci];
+  const perCap=getPerCap(d).toFixed(2);
+  const perCapRank=[...GU].sort((a,b)=>getPerCap(b)-getPerCap(a)).findIndex(x=>x.n===d.n)+1;
+  const recycleRank=[...GU].sort((a,b)=>(b.recycle||0)-(a.recycle||0)).findIndex(x=>x.n===d.n)+1;
+
+  // 개선 가능성 메시지
+  let improvementMsg='';
+  if(recycleRank > 18) improvementMsg=`💪 재활용률 ${recycleRank}위 — 조금만 힘내면 상위권 진입! 분리배출 점검이 핵심`;
+  else if(recycleRank <= 5) improvementMsg=`👑 재활용률 ${recycleRank}위 — 우수 자치구! 다른 구의 모범 사례`;
+  else improvementMsg=`📊 재활용률 ${recycleRank}위 — 평균 수준. 음식물 분리·분리배출 정확도 개선 시 상위권 가능`;
+
+  panel.innerHTML=`
+    <div class="gu-detail-name">${d.n}</div>
+    <div class="gu-detail-cluster cl-${clusterClass}-bg cl-${clusterClass}" style="border:1px solid">${CLUSTER_NAMES[ci]}</div>
+    <div class="gu-detail-stat"><span class="gu-detail-stat-label">일 발생량</span><span class="gu-detail-stat-val">${d.daily}톤/일</span></div>
+    <div class="gu-detail-stat"><span class="gu-detail-stat-label">1인당 배출</span><span class="gu-detail-stat-val">${perCap}kg/일 (${perCapRank}위)</span></div>
+    <div class="gu-detail-stat"><span class="gu-detail-stat-label">주민수</span><span class="gu-detail-stat-val">${(d.pop/10000).toFixed(1)}만명</span></div>
+    <div class="gu-detail-stat"><span class="gu-detail-stat-label">재활용률</span><span class="gu-detail-stat-val">${d.recycle}% (${recycleRank}위)</span></div>
+    <div class="gu-detail-stat"><span class="gu-detail-stat-label">소각률</span><span class="gu-detail-stat-val">${d.inc}%</span></div>
+    <div class="gu-detail-stat"><span class="gu-detail-stat-label">매립률</span><span class="gu-detail-stat-val">${d.land}%</span></div>
+    <div class="gu-detail-stat"><span class="gu-detail-stat-label">음식물 비중</span><span class="gu-detail-stat-val">${d.food}%</span></div>
+    <div class="gu-detail-msg">${improvementMsg}</div>`;
+}
+
+function initGangseoChart(){
+  const ctx=document.getElementById('gangseo-chart').getContext('2d');
+  const gs = (typeof RECYCLE_INDUSTRY !== 'undefined' && RECYCLE_INDUSTRY['강서구'])
+    ? RECYCLE_INDUSTRY['강서구']
+    : {life:55, industry:32, construction:10, designated:3};
+  let avg = {life:72, industry:12, construction:12, designated:4};
+  if (typeof RECYCLE_INDUSTRY !== 'undefined') {
+    const others = Object.entries(RECYCLE_INDUSTRY)
+      .filter(([k,_]) => k !== '강서구').map(([_,v]) => v);
+    if (others.length > 0) {
+      avg = {
+        life: +(others.reduce((s,d)=>s+(d.life||0),0)/others.length).toFixed(1),
+        industry: +(others.reduce((s,d)=>s+(d.industry||0),0)/others.length).toFixed(1),
+        construction: +(others.reduce((s,d)=>s+(d.construction||0),0)/others.length).toFixed(1),
+        designated: +(others.reduce((s,d)=>s+(d.designated||0),0)/others.length).toFixed(1),
+      };
+    }
+  }
+  charts.gangseo=new Chart(ctx,{type:'bar',data:{labels:['강서구','서울 평균(他)'],datasets:[
+    {label:'생활계',data:[gs.life,avg.life],backgroundColor:'rgba(37,99,235,.65)',borderWidth:0},
+    {label:'사업장',data:[gs.industry,avg.industry],backgroundColor:'rgba(124,58,237,.75)',borderWidth:0},
+    {label:'건설',data:[gs.construction,avg.construction],backgroundColor:'rgba(217,119,6,.5)',borderWidth:0},
+    {label:'지정',data:[gs.designated,avg.designated],backgroundColor:'rgba(120,130,150,.5)',borderWidth:0},
+  ]},options:{responsive:true,maintainAspectRatio:false,indexAxis:'y',plugins:{legend:{labels:{color:'#3a4252',font:{size:10},padding:6,boxWidth:10}}},scales:{
+    x:{stacked:true,grid:{color:'transparent'},ticks:{color:'#5a6478',font:{size:9},callback:v=>v+'%'},max:100},
+    y:{stacked:true,grid:{color:'transparent'},ticks:{color:'#3a4252',font:{size:11,weight:'600'}}}
+  }}});
+}
+
+function initJongnoChart(){
+  const ctx=document.getElementById('jongno-chart').getContext('2d');
+  // GU 데이터에서 종로/중구/용산/광진의 거주인구당 vs 생활인구당 계산
+  const targets=['종로구','중구','용산구','광진구'];
+  const labels=[];
+  const residentBased=[];
+  const livingBased=[];
+  targets.forEach(name=>{
+    const d=GU.find(x=>x.n===name);
+    if(d){
+      labels.push(name.replace('구',''));
+      residentBased.push(getPerCap(d));
+      const livingPop=d.livingPop||(d.pop/10000*1.5);
+      // daily(톤) * 1000 / livingPop(만명*10000) = kg/생활인구
+      livingBased.push(+(d.daily*1000/(livingPop*10000)).toFixed(2));
+    }
+  });
+  // 서울 평균 추가
+  const avgPerCap=GU.reduce((s,d)=>s+getPerCap(d),0)/GU.length;
+  labels.push('서울평균');
+  residentBased.push(+avgPerCap.toFixed(2));
+  livingBased.push(+(avgPerCap*0.75).toFixed(2));
+
+  charts.jongno=new Chart(ctx,{type:'bar',data:{labels,datasets:[
+    {label:'거주인구당(kg)',data:residentBased,backgroundColor:'rgba(220,38,38,.75)',borderWidth:0,borderRadius:3},
+    {label:'생활인구당(kg)',data:livingBased,backgroundColor:'rgba(0,153,117,.75)',borderWidth:0,borderRadius:3},
+  ]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{color:'#3a4252',font:{size:10},padding:6,boxWidth:10}}},scales:{
+    x:{grid:{color:'transparent'},ticks:{color:'#3a4252',font:{size:11,weight:'500'}}},
+    y:{grid:{color:'rgba(0,0,0,.04)'},ticks:{color:'#5a6478',font:{size:10,family:'JetBrains Mono'}}}
+  }}});
+}
+
+function initFactorSelect(){
+  const sel=document.getElementById('factor-gu');
+  if(sel.children.length>0) return;
+  GU.forEach((d,i)=>{const o=new Option(d.n,i);sel.add(o);});
+  sel.value=0;
+  updateFactorPanel();
+}
+function updateFactorPanel(){
+  const gi=+document.getElementById('factor-gu').value||0;
+  const d=GU[gi];
+  if(!d) return;
+  const wrap=document.getElementById('factor-result');
+
+  // 평균값 계산
+  const avgFood=GU.reduce((s,x)=>s+(x.food||0),0)/GU.length;
+  const avgRecycle=GU.reduce((s,x)=>s+(x.recycle||0),0)/GU.length;
+  const avgPerCap=GU.reduce((s,x)=>s+getPerCap(x),0)/GU.length;
+  const avgInc=GU.reduce((s,x)=>s+(x.inc||0),0)/GU.length;
+
+  const factors=[
+    {name:'1인당 배출량',val:getPerCap(d),avg:avgPerCap,unit:'kg'},
+    {name:'음식물 비중',val:d.food||0,avg:avgFood,unit:'%'},
+    {name:'재활용률',val:d.recycle||0,avg:avgRecycle,unit:'%'},
+    {name:'소각률',val:d.inc||0,avg:avgInc,unit:'%'},
+  ];
+
+  wrap.innerHTML=factors.map(f=>{
+    const diff=f.val-f.avg;
+    const pct=Math.abs(diff)/f.avg*100;
+    const dir=diff>0?'pos':'neg';
+    const label=diff>0?`+${pct.toFixed(0)}%`:`-${pct.toFixed(0)}%`;
+    const barWidth=Math.min(50,pct*0.8);
+    return `<div class="factor-row">
+      <div class="factor-name">${f.name}</div>
+      <div class="factor-effect">
+        <span style="color:var(--text2);font-size:10px;font-family:var(--mono)">${f.val.toFixed(1)}${f.unit}</span>
+        <div class="factor-bar"><div class="factor-bar-fill ${dir}" style="width:${barWidth}%"></div></div>
+        <span class="factor-val" style="color:${diff>0?'var(--red)':'var(--teal)'}">${label}</span>
+      </div>
+    </div>`;
+  }).join('') +
+  `<div style="margin-top:10px;padding:8px 10px;background:var(--bg3);border-radius:6px;font-size:10px;color:var(--text2);font-family:var(--mono);line-height:1.6">
+    💡 막대는 서울 평균 대비 차이를 나타냅니다.<br>
+    오른쪽(빨강) = 평균 초과 / 왼쪽(녹색) = 평균 미만
+  </div>`;
+}
+
+function initAdjustedChart(){
+  const ctx=document.getElementById('adjusted-chart').getContext('2d');
+  // 인구갭 큰 자치구 8개 표시
+  const targets=[...GU].sort((a,b)=>{
+    const ga=(a.livingPop||a.pop/10000*1.5)/(a.pop/10000);
+    const gb=(b.livingPop||b.pop/10000*1.5)/(b.pop/10000);
+    return gb-ga;
+  }).slice(0,8);
+  const labels=targets.map(d=>d.n.replace('구',''));
+  const residentBased=targets.map(d=>getPerCap(d));
+  const livingBased=targets.map(d=>{
+    const lp=d.livingPop||(d.pop/10000*1.5);
+    return +(d.daily*1000/(lp*10000)).toFixed(2);
+  });
+  charts.adjusted=new Chart(ctx,{type:'bar',data:{labels,datasets:[
+    {label:'거주인구당',data:residentBased,backgroundColor:'rgba(220,38,38,.65)',borderWidth:0,borderRadius:3},
+    {label:'생활인구당(조정)',data:livingBased,backgroundColor:'rgba(0,153,117,.75)',borderWidth:0,borderRadius:3},
+  ]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{color:'#3a4252',font:{size:10},padding:6,boxWidth:10}}},scales:{
+    x:{grid:{color:'transparent'},ticks:{color:'#3a4252',font:{size:10}}},
+    y:{grid:{color:'rgba(0,0,0,.04)'},ticks:{color:'#5a6478',font:{size:10,family:'JetBrains Mono'},callback:v=>v+'kg'}}
+  }}});
+}
+
+/* ════════════════════════════════════════════════ */
+/* CHAPTER 3                                         */
+/* ════════════════════════════════════════════════ */
+function initCh3(){
+  initSimSelect();
+  charts.simInited=true;
+}
+
+function initSimSelect(){
+  const sel=document.getElementById('sim-gu');
+  if(sel.children.length>0)return;
+  GU.forEach((d,i)=>{const o=new Option(d.n,i);sel.add(o);});
+  sel.value=0;
+  runSim();
+}
+
+// 사용자가 마지막으로 조작한 두 슬라이더는 입력값 유지, 나머지 한 슬라이더는 100 - 두 값의 합으로 자동 조정
+// 배열 앞쪽일수록 최근 조작. 가장 오래된(index 2)이 자동 조정 대상
+let weightTouchOrder=['w-co2','w-dist','w-cost'];
+function updateWeights(changedId){
+  if(changedId){
+    weightTouchOrder=[changedId,...weightTouchOrder.filter(id=>id!==changedId)];
+  }
+  const userId1=weightTouchOrder[0];
+  const userId2=weightTouchOrder[1];
+  const autoId =weightTouchOrder[2];
+  let v1=+document.getElementById(userId1).value;
+  let v2=+document.getElementById(userId2).value;
+  // 두 값의 합이 100을 초과하면 가장 최근 입력(v1) 우선, 두 번째 입력을 보정
+  if(v1+v2>100){
+    v2=Math.max(0,100-v1);
+    document.getElementById(userId2).value=v2;
+  }
+  const autoVal=Math.max(0,100-v1-v2);
+  document.getElementById(autoId).value=autoVal;
+  // 표시 라벨 갱신
+  const labelMap={'w-cost':'w-cost-v','w-dist':'w-dist-v','w-co2':'w-co2-v'};
+  for(const id of ['w-cost','w-dist','w-co2']){
+    document.getElementById(labelMap[id]).textContent=document.getElementById(id).value+'%';
+  }
+  runSim();
+}
+
+function runSim(){
+  const gi=+document.getElementById('sim-gu').value||0;
+  const tons=+document.getElementById('sim-tons').value||15;
+  const wc=+document.getElementById('w-cost').value;
+  const wd=+document.getElementById('w-dist').value;
+  const we=+document.getElementById('w-co2').value;
+  const sumW=wc+wd+we||1;
+  const wCost=wc/sumW,wDist=wd/sumW,wCO2=we/sumW;
+
+  const gu=GU[gi];
+  if(!gu) return;
+  document.getElementById('sim-target').textContent=`${gu.n} · ${tons}톤/일 위탁`;
+
+  // 자치구 좌표: 구청 위경도 우선(facilities.js), fallback으로 GU의 좌표 (지도용)
+  const guCoord=(window.SEOUL_GU_COORDS||[]).find(g=>g.name===gu.n);
+  const srcLat=guCoord?guCoord.lat:gu.lat;
+  const srcLng=guCoord?guCoord.lng:gu.lng;
+
+  // 자치구별 동적 도로거리·단가·CO₂ 재계산 후 후보 필터링 (DISTANCE_MATRIX lookup)
+  // 충남(flag='r')도 후보에 포함하되 카드에 별도 안내 메시지 표시
+  const candidates=PRIVATE_FACILITIES_ENRICHED
+    .map(f=>recomputeForGu(f,gu.n))
+    .filter(f=>f.remain>=tons);
+
+  if(candidates.length===0){
+    document.getElementById('sim-results').innerHTML=`<div style="font-size:13px;color:var(--red);text-align:center;padding:24px">⚠️ 조건을 만족하는 시설이 없습니다.<br>위탁 물량을 줄여주세요.</div>`;
+    document.getElementById('sim-map-wrap').style.display='none';
+    return;
+  }
+
+  const costs=candidates.map(f=>f.unitCost);
+  const dists=candidates.map(f=>f.distance);
+  const co2s=candidates.map(f=>f.co2);
+  const cMin=Math.min(...costs),cMax=Math.max(...costs);
+  const dMin=Math.min(...dists),dMax=Math.max(...dists);
+  const eMin=Math.min(...co2s),eMax=Math.max(...co2s);
+
+  const scored=candidates.map(f=>{
+    const sCost=1-(f.unitCost-cMin)/(cMax-cMin||1);
+    const sDist=1-(f.distance-dMin)/(dMax-dMin||1);
+    const sCO2=1-(f.co2-eMin)/(eMax-eMin||1);
+    const total=sCost*wCost+sDist*wDist+sCO2*wCO2;
+    return {...f,score:total};
+  }).sort((a,b)=>b.score-a.score);
+
+  const top3=scored.slice(0,3);
+
+  document.getElementById('sim-results').innerHTML=`
+    <div class="sim-cards">
+      ${top3.map((f,i)=>{
+        const flagIcon=f.flag==='g'?'🟢':f.flag==='y'?'🟡':'🔴';
+        const dailyCost=(tons*f.unitCost/10000).toFixed(1);
+        // CO₂ 단위 통일 — 모두 kg 기준
+        const co2KgPerTon = (f.co2 * 1000).toFixed(1);          // 톤당 kg
+        const dailyCo2Kg  = Math.round(tons * f.co2 * 1000);    // 일일 kg
+        const noticeTitle = f.flag==='r'
+          ? '충남 시설은 타지역 폐기물 반입 정책이 시설별로 상이합니다. 위탁 전 시설에 직접 문의해주세요.'
+          : f.flag==='y'
+          ? '인천 시설은 협의 후 반입 가능 — 시설에 사전 문의 권장'
+          : '';
+        const noticeHtml = noticeTitle
+          ? `<div style="margin-top:8px;font-size:12px;color:var(--red);font-weight:600;cursor:help" title="${noticeTitle}">ⓘ 반입 전 사전 문의 필요</div>`
+          : '';
+        return `<div class="sim-card${i===1?' r2':i===2?' r3':''}">
+          <span class="sim-rank">#${i+1}</span>
+          <div class="sim-name">${f.name}</div>
+          <div class="sim-meta">${flagIcon} ${f.region} · 종합점수 ${(f.score*100).toFixed(1)}점</div>
+          <div class="sim-metric-grid">
+            <div class="sim-metric dist"><div class="sim-metric-icon">📍</div><div><div class="sim-metric-label">거리</div><div class="sim-metric-val">${f.distance} km</div></div></div>
+            <div class="sim-metric cost"><div class="sim-metric-icon">💰</div><div><div class="sim-metric-label">단가</div><div class="sim-metric-val">${(f.unitCost/1000).toFixed(0)} 천원/t</div></div></div>
+            <div class="sim-metric cap"><div class="sim-metric-icon">📦</div><div><div class="sim-metric-label">잔여용량</div><div class="sim-metric-val">${f.remain} 톤/일</div></div></div>
+            <div class="sim-metric co2"><div class="sim-metric-icon">🌿</div><div><div class="sim-metric-label">CO₂</div><div class="sim-metric-val">${co2KgPerTon} kg/톤</div></div></div>
+          </div>
+          <div style="border-top:1px dashed var(--border);margin-top:8px;padding-top:8px">
+            <div class="sim-stat"><span class="sim-stat-label" style="color:var(--teal)">▸ 일일 비용</span><span class="sim-stat-val" style="color:var(--teal);font-weight:600">${dailyCost} 만원/일</span></div>
+            <div class="sim-stat"><span class="sim-stat-label" style="color:var(--amber)">▸ 일일 CO₂</span><span class="sim-stat-val" style="color:var(--amber);font-weight:600">${dailyCo2Kg} kg/일</span></div>
+          </div>
+          ${noticeHtml}
+        </div>`;
+      }).join('')}
+    </div>`;
+
+  document.getElementById('sim-map-wrap').style.display='block';
+  drawSimMap(gu,top3);
+}
+
+let simMapInstance=null,simMapLayers=[];
+function drawSimMap(gu,top3){
+  const container=document.getElementById('sim-map');
+  if(!container) return;
+  if(!simMapInstance){
+    simMapInstance=L.map('sim-map',{
+      zoomControl:true,scrollWheelZoom:false,attributionControl:true,zoomSnap:0.5
+    }).setView([37.4,127.0],8.5);
+    // 한국 지명·도로가 또렷하게 보이는 OpenStreetMap 표준 타일
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
+      attribution:'© OpenStreetMap contributors',
+      maxZoom:19, subdomains:'abc'
+    }).addTo(simMapInstance);
+    setTimeout(()=>simMapInstance.invalidateSize(),100);
+  }
+  simMapLayers.forEach(l=>l.remove());
+  simMapLayers=[];
+
+  // 자치구 좌표: 구청 좌표 우선, 없으면 GU 좌표
+  const guCoord=(window.SEOUL_GU_COORDS||[]).find(g=>g.name===gu.n);
+  const srcLat=guCoord?guCoord.lat:gu.lat;
+  const srcLng=guCoord?guCoord.lng:gu.lng;
+  if(!srcLat || !srcLng) return;
+
+  const srcMarker=L.circleMarker([srcLat,srcLng],{
+    radius:11,fillColor:'#10b981',color:'#fff',weight:2.5,fillOpacity:.95
+  }).bindTooltip(`<strong>${gu.n} 구청</strong><br>출발지 · ${document.getElementById('sim-tons').value}톤/일`,
+    {className:'gu-tooltip',permanent:true,direction:'top',offset:[0,-12]}
+  ).addTo(simMapInstance);
+  simMapLayers.push(srcMarker);
+
+  const rankColors=['#10b981','#818cf8','#fbbf24'];
+  top3.forEach((f,i)=>{
+    const line=L.polyline([[srcLat,srcLng],[f.lat,f.lng]],{
+      color:rankColors[i],weight:i===0?3:2,opacity:i===0?.85:.55,
+      dashArray:i===0?null:'6,5'
+    }).addTo(simMapInstance);
+    const marker=L.circleMarker([f.lat,f.lng],{
+      radius:9-i,fillColor:rankColors[i],color:'#fff',weight:2,fillOpacity:.9
+    }).bindTooltip(
+      `<strong>#${i+1} ${f.name}</strong><br>거리: ${f.distance}km<br>단가: ${(f.unitCost/1000).toFixed(0)}천원/t<br>점수: ${(f.score*100).toFixed(1)}점`,
+      {className:'gu-tooltip',sticky:true,direction:'top'}
+    ).addTo(simMapInstance);
+    const labelIcon=L.divIcon({
+      className:'',
+      html:`<div style="background:${rankColors[i]};color:#fff;font-family:JetBrains Mono;font-size:12px;font-weight:700;padding:3px 8px;border-radius:5px;white-space:nowrap;border:1px solid rgba(255,255,255,.6);box-shadow:0 1px 3px rgba(0,0,0,.2)">#${i+1} ${f.name.replace(/^[가-힣]+ /,'')}</div>`,
+      iconSize:[100,20],iconAnchor:[50,-10]
+    });
+    const lbl=L.marker([f.lat,f.lng],{icon:labelIcon,interactive:false}).addTo(simMapInstance);
+    simMapLayers.push(line,marker,lbl);
+  });
+
+  const bounds=L.latLngBounds([[gu.lat,gu.lng],...top3.map(f=>[f.lat,f.lng])]);
+  simMapInstance.fitBounds(bounds,{padding:[40,40],maxZoom:10});
+}
+
+/* ════════ POPUP ════════ */
+function openPopup(gi){
+  const d=GU[gi];
+  if(!d) return;
+  const perCap=getPerCap(d).toFixed(2);
+  document.getElementById('popup-content').innerHTML=`
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:4px">
+      <div style="font-size:22px;font-weight:700">${d.n}</div>
+      <span class="cluster-tag cl-${['residential','commercial','transit','mixed'][mapCluster(d.cluster)]}-bg cl-${['residential','commercial','transit','mixed'][mapCluster(d.cluster)]}" style="font-size:11px;padding:3px 10px;border-radius:10px;border:1px solid">${CLUSTER_NAMES[mapCluster(d.cluster)]}</span>
+    </div>
+    <div style="font-size:11px;color:var(--text2);margin-bottom:12px">인구 ${(d.pop/10000).toFixed(1)}만명 · 1인당 ${perCap}kg/일</div>
+    <div class="popup-grid">
+      <div class="panel"><div class="popup-stat">일일 발생량</div><div class="popup-val" style="color:var(--teal)">${d.daily}톤/일</div></div>
+      <div class="panel"><div class="popup-stat">1인당 배출량</div><div class="popup-val" style="color:var(--amber)">${perCap}kg/일</div></div>
+      <div class="panel"><div class="popup-stat">재활용률</div><div class="popup-val" style="color:var(--blue)">${d.recycle}%</div></div>
+      <div class="panel"><div class="popup-stat">소각/매립</div><div class="popup-val">${d.inc}/${d.land}<span style="font-size:13px;color:var(--text2)">%</span></div></div>
+    </div>
+    <div style="display:flex;gap:8px;margin-top:12px">
+      <button style="flex:1;padding:8px;background:var(--red-bg);border:1px solid rgba(220,38,38,.3);border-radius:6px;color:var(--red);font-size:11px;cursor:pointer;font-family:var(--sans)" onclick="closePopup();sw(2);setTimeout(()=>{const s=document.getElementById('sim-gu');if(s){s.value=${gi};runSim();}},150)">💊 매칭 시뮬레이터로</button>
+    </div>`;
+  document.getElementById('popup-overlay').classList.add('show');
+}
+function closePopup(){document.getElementById('popup-overlay').classList.remove('show');}
+
+/* INIT */
+window.addEventListener('load',()=>initCh1());
+window.addEventListener('resize',()=>{
+  if(map1Instance) map1Instance.invalidateSize();
+  if(map4Instance) map4Instance.invalidateSize();
+  if(simMapInstance) simMapInstance.invalidateSize();
+});
+</script>
+
+<!-- ═══════════ iframe 모드 자동 주입 (shell 에서 로드 시) ═══════════ -->
+<style>
+  /* 외부 shell 이 탭 담당 → 내부 탭 숨김 */
+  .tabs { display: none !important; }
+</style>
+<script>
+  /* DOM 준비되면 즉시 CH.3 활성화 */
+  document.addEventListener('DOMContentLoaded', function() {
+    if (typeof sw === 'function') sw(2);
+    else if (typeof switchTab === 'function') switchTab(2);
+    setTimeout(function(){
+      if (typeof initPolicySimulator === 'function') initPolicySimulator();
+    }, 350);
+  });
+
+
+/* ════════════ FROM MINSEO (helpers + finance/policy fns) ════════════ */
+function closePopup(){document.getElementById('popup-overlay').classList.remove('show');}
+
+
+/* ════════════════════════════════════════════════ */
+/* FINANCE / BURDEN HELPERS                         */
+/* ════════════════════════════════════════════════ */
+function financeRate(name,key){
+  if(typeof FINANCE==='undefined' || !FINANCE[key] || FINANCE[key][name]==null) return 0;
+  return +FINANCE[key][name] || 0;
+}
+function won(v){return Math.round(v).toLocaleString()+'원';}
+function pctTxt(v,d=1){return (v*100).toFixed(d)+'%';}
+function cleanClusterName(d){return (CLUSTER_NAMES[d.cluster]||d.clusterType||'유형미상').replace(/[🏢🏠🚶🧩]/g,'').trim();}
+function mean(arr){return arr.length?arr.reduce((a,b)=>a+b,0)/arr.length:0;}
+function median(arr){const a=[...arr].sort((x,y)=>x-y);const n=a.length;if(!n)return 0;return n%2?a[(n-1)/2]:(a[n/2-1]+a[n/2])/2;}
+
+function getFinanceTargetConfig(target=financeTarget){
+  return target==='food'
+    ? {key:'food',label:'음식물',incomeLabel:'1인당 음식물 수수료 수입',costLabel:'1인당 음식물 처리비용',rateLabel:'음식물 주민부담률',typeField:'foodType'}
+    : {key:'general',label:'일반',incomeLabel:'1인당 일반 봉투 판매액',costLabel:'1인당 일반 처리비용',rateLabel:'일반 주민부담률',typeField:'type'};
+}
+
+function buildFinanceRowFromBurden(r, target='general'){
+  const name=r.gu;
+  const d=GU.find(g=>g.n===name) || {};
+  const pop=Number(r.total_pop)||d.pop||1;
+  const clusterName=String(r.cluster_type||d.clusterType||cleanClusterName(d));
+  const cluster=['상업형','주거형','유동집중형','혼합형'].indexOf(clusterName);
+  const safeCluster=cluster>=0?cluster:(Number(d.cluster)||0);
+
+  const genSalesPerCap=Number(r.bag_rev_per_pop)||0;
+  const genCostPerCap=Number(r.gen_cost_per_pop)||0;
+  const foodSalesPerCap=Number(r.fee_rev_per_pop)||0;
+  const foodCostPerCap=Number(r.food_cost_per_pop)||0;
+
+  const genIncome=genSalesPerCap*pop/1000000;
+  const genCost=genCostPerCap*pop/1000000;
+  const foodIncome=foodSalesPerCap*pop/1000000;
+  const foodCost=foodCostPerCap*pop/1000000;
+
+  const isFood=target==='food';
+  const salesPerCap=isFood?foodSalesPerCap:genSalesPerCap;
+  const costPerCap=isFood?foodCostPerCap:genCostPerCap;
+  const income=isFood?foodIncome:genIncome;
+  const cost=isFood?foodCost:genCost;
+  const type=String(isFood?(r.food_quad||'분류없음'):(r.gen_quad||'분류없음'));
+  const rate=(Number(isFood?r.burden_food_pct:r.burden_general_pct)||0)/100;
+  const cfg=getFinanceTargetConfig(target);
+  return {
+    name,pop,cluster:safeCluster,clusterName,
+    totalRate:(Number(r.burden_total_pct)||0)/100,
+    generalRate:(Number(r.burden_general_pct)||0)/100,
+    foodRate:(Number(r.burden_food_pct)||0)/100,
+    rate,rateLabel:cfg.rateLabel,target,
+    fiscal:financeRate(name,'fiscalIndependence'),
+    income,cost,salesPerCap,costPerCap,
+    genIncome,genCost,foodIncome,foodCost,
+    genSalesPerCap,genCostPerCap,foodSalesPerCap,foodCostPerCap,
+    integratedIncome:genIncome+foodIncome,
+    integratedCost:genCost+foodCost,
+    integratedRate:(genCost+foodCost)>0?(genIncome+foodIncome)/(genCost+foodCost):0,
+    bagRevPerHh:Number(r.bag_rev_per_hh)||0,
+    genCostPerHh:Number(r.gen_cost_per_hh)||0,
+    foodRevPerHh:Number(r.fee_rev_per_hh)||0,
+    foodCostPerHh:Number(r.food_cost_per_hh)||0,
+    foodType:String(r.food_quad||''),
+    rfid:(r.rfid===true || String(r.rfid).toLowerCase()==='true'),
+    scenarioId:String(r.scenario_id||scenarioIdForCell(clusterName,type)),
+    type,
+    typeLabel:financeTypeLabel(type),
+    unrecovered:Math.max(cost-income,0),
+    integratedUnrecovered:Math.max((genCost+foodCost)-(genIncome+foodIncome),0),
+    gu:d
+  };
+}
+
+function financeRows(target=financeTarget){
+  const src = (typeof BURDEN_2023 !== 'undefined' && Array.isArray(BURDEN_2023)) ? BURDEN_2023 : [];
+  if(src.length){
+    return src.map(r=>buildFinanceRowFromBurden(r,target)).filter(r=>r.salesPerCap>0 && r.costPerCap>0);
+  }
+  if(typeof FINANCE==='undefined') return [];
+  const base=GU.map(d=>{
+    const name=d.n, pop=d.pop||1;
+    const income=(FINANCE.jongrangjeiIncome?.[name]??0);
+    const cost=(FINANCE.collectionCost?.[name]??0);
+    const salesPerCap=income*1000000/pop;
+    const costPerCap=cost*1000000/pop;
+    return {name,pop,cluster:d.cluster,clusterName:cleanClusterName(d),totalRate:financeRate(name,'burdenRateTotal'),generalRate:financeRate(name,'burdenRateGeneral'),foodRate:financeRate(name,'burdenRateFood'),rate:financeRate(name,target==='food'?'burdenRateFood':'burdenRateGeneral'),fiscal:financeRate(name,'fiscalIndependence'),income,cost,salesPerCap,costPerCap,genIncome:income,genCost:cost,foodIncome:0,foodCost:0,integratedIncome:income,integratedCost:cost,integratedRate:cost?income/cost:0,unrecovered:Math.max(cost-income,0),integratedUnrecovered:Math.max(cost-income,0),gu:d};
+  }).filter(r=>r.income>0 && r.cost>0 && r.pop>0);
+  const salesBase=mean(base.map(r=>r.salesPerCap));
+  const costBase=mean(base.map(r=>r.costPerCap));
+  base.forEach(r=>{
+    r.incomeLevel=r.salesPerCap>=salesBase?'고수입':'저수입';
+    r.costLevel=r.costPerCap>=costBase?'고비용':'저비용';
+    r.type=`${r.incomeLevel} ${r.costLevel}`;
+    r.typeLabel=financeTypeLabel(r.type);
+    r.scenarioId=scenarioIdForCell(r.clusterName,r.type);
+  });
+  return base;
+}
+
+function financeTypeLabel(type){
+  return ({
+    '분자↑·분모↑':'고수입·고비용형',
+    '분자↑·분모↓':'수입회수형',
+    '분자↓·분모↑':'재정부담형',
+    '분자↓·분모↓':'저수입·저비용형',
+    '고수입 고비용':'고수입·고비용형',
+    '고수입 저비용':'수입회수형',
+    '저수입 고비용':'재정부담형',
+    '저수입 저비용':'저수입·저비용형'
+  }[type]||type);
+}
+function financeTypeText(type){
+  return ({
+    '분자↑·분모↑':'수입과 처리비용이 모두 평균 이상인 고수입·고비용 구조입니다. 회수력이 있어 보이지만 절대 비용도 커서 비용 효율화가 우선입니다.',
+    '분자↑·분모↓':'수입은 평균 이상이고 처리비용은 평균 이하인 수입회수형입니다. 급격한 요금 인상보다 감량 인센티브와 서비스 환류 점검이 적합합니다.',
+    '분자↓·분모↑':'수입은 낮고 처리비용은 높은 재정부담형입니다. 처리비 절감과 함께 회수 수입을 단계적으로 보강할 필요가 큽니다.',
+    '분자↓·분모↓':'수입과 처리비용이 모두 낮은 저수입·저비용형입니다. 무리한 가격 인상보다 분리배출, RFID, 주민 참여형 감량 정책으로 기반을 만드는 것이 적합합니다.',
+    '고수입 고비용':'수입도 높지만 처리비용도 높은 구조입니다. 요금 인상보다 수집·운반·처리 효율화와 다량배출원 관리가 우선입니다.',
+    '고수입 저비용':'비용 대비 회수력이 높은 구조입니다. 급격한 수수료 인상보다 감량 인센티브와 재활용 품질 개선으로 현재 회수력을 유지하는 전략이 적합합니다.',
+    '저수입 고비용':'비용은 높은데 회수 수입은 낮은 구조입니다. 처리비 절감과 함께 수수료·봉투가격을 단계적으로 조정할 필요가 큽니다.',
+    '저수입 저비용':'비용과 수입이 모두 낮은 구조입니다. 무리한 가격 인상보다 분리배출, RFID, 주민 참여형 감량 정책으로 기반을 만드는 것이 적합합니다.'
+  }[type]||'재정 부담 구조를 추가 확인해야 합니다.');
+}
+function clusterPolicyText(clusterName){
+  if(clusterName.includes('상업')) return '상권·업무 배출과 유동인구 영향이 커 다량배출원 협약, 상가 분리배출 관리, 거리 쓰레기 거점 관리가 중요합니다.';
+  if(clusterName.includes('주거')) return '가정 배출 비중이 커 RFID, 감량 인센티브, 공동주택 분리배출 개선처럼 주민 참여형 정책의 반응성이 큽니다.';
+  if(clusterName.includes('유동')) return '등록인구보다 생활·방문 인구 영향이 커 역사·상권 주변 분리배출함, 가로청소, 무단투기 단속이 중요합니다.';
+  return '주거·상업·업무 기능이 섞여 있어 권역별로 수수료, 감량, 처리비 절감 정책을 조합하는 방식이 적합합니다.';
+}
+
+const FINANCE_TYPE_ORDER = ['분자↑·분모↑','분자↑·분모↓','분자↓·분모↑','분자↓·분모↓'];
+const FINANCE_TYPE_META = {
+  '분자↑·분모↑':{label:'고수입·고비용형',short:'',desc:'',color:'#ef4444',bg:'rgba(239,68,68,.055)'},
+  '분자↑·분모↓':{label:'수입회수형',short:'',desc:'',color:'#f59e0b',bg:'rgba(245,158,11,.06)'},
+  '분자↓·분모↑':{label:'재정부담형',short:'',desc:'',color:'#22c55e',bg:'rgba(34,197,94,.055)'},
+  '분자↓·분모↓':{label:'저수입·저비용형',short:'',desc:'',color:'#94a3b8',bg:'rgba(148,163,184,.07)'},
+  '고수입 고비용':{label:'고수입·고비용형',short:'',desc:'',color:'#ef4444',bg:'rgba(239,68,68,.055)'},
+  '고수입 저비용':{label:'수입회수형',short:'',desc:'',color:'#f59e0b',bg:'rgba(245,158,11,.06)'},
+  '저수입 고비용':{label:'재정부담형',short:'',desc:'',color:'#22c55e',bg:'rgba(34,197,94,.055)'},
+  '저수입 저비용':{label:'저수입·저비용형',short:'',desc:'',color:'#94a3b8',bg:'rgba(148,163,184,.07)'}
+};
+const FINANCE_CLUSTER_ROWS = ['주거형','혼합형','유동집중형','상업형'];
+const FINANCE_SCENARIO_CLUSTER_ORDER = ['상업형','유동집중형','혼합형','주거형'];
+function scenarioIdForCell(cluster,type){
+  const ri=FINANCE_SCENARIO_CLUSTER_ORDER.indexOf(cluster);
+  const ci=FINANCE_TYPE_ORDER.indexOf(type);
+  if(ri<0 || ci<0) return '';
+  return '#'+String(ri*4+ci+1).padStart(2,'0');
+}
+let financeView='matrix';
+let financeLayout='structure';
+let financeTarget='general';
+let selectedFinanceCellKey='';
+let financeBurdenMapInstance=null, financeBurdenLayer=null, financeBurdenLabels=[];
+
+const financeQuadrantPlugin = {
+  id:'financeQuadrantPlugin',
+  beforeDraw(chart,args,opts){
+    const {ctx,chartArea,scales}=chart;
+    if(!chartArea || !opts) return;
+    const {left,right,top,bottom}=chartArea;
+    const x=scales.x.getPixelForValue(opts.avgX);
+    const y=scales.y.getPixelForValue(opts.avgY);
+    ctx.save();
+    const rects=[
+      {x:left,y:top,w:x-left,h:y-top,c:'rgba(220,38,38,.045)',t:'저수입·고비용',tx:left+10,ty:top+16,col:'#f87171'},
+      {x:x,y:top,w:right-x,h:y-top,c:'rgba(0,153,117,.045)',t:'고수입·고비용',tx:x+10,ty:top+16,col:'#10b981'},
+      {x:left,y:y,w:x-left,h:bottom-y,c:'rgba(37,99,235,.045)',t:'저수입·저비용',tx:left+10,ty:y+18,col:'#818cf8'},
+      {x:x,y:y,w:right-x,h:bottom-y,c:'rgba(217,119,6,.045)',t:'고수입·저비용',tx:x+10,ty:y+18,col:'#fbbf24'}
+    ];
+    rects.forEach(r=>{ctx.fillStyle=r.c;ctx.fillRect(r.x,r.y,r.w,r.h);ctx.fillStyle=r.col;ctx.font='700 11px Noto Sans KR';ctx.fillText(r.t,r.tx,r.ty);});
+    ctx.restore();
+  }
+};
+
+function setFinanceTarget(target,el){
+  financeTarget=target;
+  selectedFinanceCellKey='';
+  document.querySelectorAll('#finance-target-toggle .tgl').forEach(b=>b.classList.remove('active'));
+  if(el) el.classList.add('active');
+  renderFinanceTargetViews();
+}
+function setFinanceLayout(layout,el){
+  financeLayout=layout;
+  document.querySelectorAll('#finance-layout-toggle .tgl').forEach(b=>b.classList.remove('active'));
+  if(el) el.classList.add('active');
+  renderFinanceTargetViews();
+}
+function setFinanceView(view,el){
+  financeView=view;
+  renderFinanceTargetViews();
+}
+
+function renderFinanceTargetViews(){
+  const cfg=getFinanceTargetConfig(financeTarget);
+  const note=document.getElementById('finance-target-note');
+  if(note) note.textContent=`${cfg.label} 기준: 분자=${cfg.incomeLabel} · 분모=${cfg.costLabel} · 점 크기=${cfg.rateLabel}`;
+  const badge=document.getElementById('finance-map-badge'); if(badge) badge.textContent=cfg.label;
+  const mb=document.getElementById('finance-matrix-badge'); if(mb) mb.textContent=cfg.label;
+  const title=document.getElementById('finance-scatter-title'); if(title) title.textContent=`${cfg.incomeLabel} × ${cfg.costLabel}`;
+  renderFinanceBurdenMap();
+  renderFinanceScatter();
+  renderFinanceMatrix();
+  setTimeout(()=>financeBurdenMapInstance&&financeBurdenMapInstance.invalidateSize(),120);
+  const first=document.querySelector('#finance-matrix .matrix-cell.occupied');
+  if(first) first.click();
+}
+
+function initFinanceAnalysis(){
+  if(typeof FINANCE==='undefined'){
+    const target=document.getElementById('finance-matrix-detail') || document.getElementById('finance-quad-summary');
+    if(target) target.innerHTML='<div class="info-box">data_finance.js가 연결되지 않아 재정 분석을 표시할 수 없습니다.</div>';
+    return;
+  }
+  renderFinanceTargetViews();
+}
+
+function financeRateColor(rate, min, max){
+  const v=(Number(rate)||0);
+  const t=max>min?Math.max(0,Math.min(1,(v-min)/(max-min))):0.5;
+  if(t<0.5){
+    const k=t/0.5;
+    const r=Math.round(219+(254-219)*k), g=Math.round(234+(226-234)*k), b=Math.round(254+(226-254)*k);
+    return `rgb(${r},${g},${b})`;
+  }
+  const k=(t-0.5)/0.5;
+  const r=Math.round(254+(220-254)*k), g=Math.round(226+(38-226)*k), b=Math.round(226+(38-226)*k);
+  return `rgb(${r},${g},${b})`;
+}
+
+async function renderFinanceBurdenMap(){
+  const container=document.getElementById('finance-burden-map');
+  if(!container) return;
+  const loading=document.getElementById('finance-map-loading');
+  const geo=await loadSeoulGeo();
+  if(!geo){if(loading) loading.textContent='⚠ 지도 로드 실패';return;}
+  if(loading) loading.classList.add('hide');
+  const rows=financeRows(financeTarget);
+  const byName=Object.fromEntries(rows.map(r=>[r.name,r]));
+  const vals=rows.map(r=>r.rate).filter(v=>v>0);
+  const min=Math.min(...vals), max=Math.max(...vals);
+  if(!financeBurdenMapInstance){
+    financeBurdenMapInstance=L.map('finance-burden-map',{zoomControl:true,scrollWheelZoom:false,attributionControl:true,zoomSnap:0.25,minZoom:8}).setView([37.5665,126.9780],9.5);
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/voyager_nolabels/{z}/{x}/{y}{r}.png',{attribution:'© OpenStreetMap © CARTO',maxZoom:18,subdomains:'abcd'}).addTo(financeBurdenMapInstance);
+    setTimeout(()=>financeBurdenMapInstance.invalidateSize(),100);
+  }
+  if(financeBurdenLayer) financeBurdenLayer.remove();
+  financeBurdenLabels.forEach(l=>l.remove()); financeBurdenLabels=[];
+  financeBurdenLayer=L.geoJSON(geo,{
+    style:f=>{
+      const r=byName[getDistName(f.properties)];
+      const clr=r?financeRateColor(r.rate,min,max):'#e5e7eb';
+      return {fillColor:clr,fillOpacity:.72,color:'rgba(0,0,0,.25)',weight:1};
+    },
+    onEachFeature:(feature,layer)=>{
+      const name=getDistName(feature.properties);
+      const r=byName[name]; if(!r) return;
+      layer.bindTooltip(`<strong>${r.name}</strong><br>${r.rateLabel}: ${pctTxt(r.rate)}<br>수입 ${won(r.salesPerCap)} / 비용 ${won(r.costPerCap)}`,{className:'gu-tooltip',sticky:true,direction:'top'});
+      layer.on('mouseover',e=>e.target.setStyle({weight:2.5,color:'#000',fillOpacity:.88}));
+      layer.on('mouseout',e=>financeBurdenLayer.resetStyle(e.target));
+      const center=layer.getBounds().getCenter();
+      const labelIcon=L.divIcon({className:'gu-label',html:name.replace('구',''),iconSize:[40,12],iconAnchor:[20,6]});
+      financeBurdenLabels.push(L.marker(center,{icon:labelIcon,interactive:false}).addTo(financeBurdenMapInstance));
+    }
+  }).addTo(financeBurdenMapInstance);
+  try{
+    financeBurdenMapInstance.invalidateSize();
+    const bounds=financeBurdenLayer.getBounds();
+    financeBurdenMapInstance.fitBounds(bounds,{padding:[2,2],maxZoom:9.5});
+    setTimeout(()=>{
+      financeBurdenMapInstance.invalidateSize();
+      financeBurdenMapInstance.fitBounds(bounds,{padding:[2,2],maxZoom:9.5});
+      financeBurdenMapInstance.setZoom(Math.max(8,financeBurdenMapInstance.getZoom()-0.25));
+    },80);
+  }catch(e){}
+}
+
+function renderFinanceScatter(){
+  const canvas=document.getElementById('finance-scatter');
+  if(!canvas || typeof FINANCE==='undefined') return;
+  const cfg=getFinanceTargetConfig(financeTarget);
+  const rows=financeRows(financeTarget);
+  const avgX=mean(rows.map(r=>r.salesPerCap));
+  const avgY=mean(rows.map(r=>r.costPerCap));
+  const minX=Math.min(...rows.map(r=>r.salesPerCap))*0.80, maxX=Math.max(...rows.map(r=>r.salesPerCap))*1.13;
+  const minY=Math.min(...rows.map(r=>r.costPerCap))*0.80, maxY=Math.max(...rows.map(r=>r.costPerCap))*1.13;
+  const clusterDatasets=CLUSTER_NAMES.map((nm,ci)=>({
+    type:'scatter',
+    label:nm,
+    data:rows.filter(r=>r.cluster===ci).map(r=>({x:r.salesPerCap,y:r.costPerCap,r})),
+    pointRadius:rctx=>pointRadiusByRate(rctx.raw?.r?.rate),
+    pointHoverRadius:rctx=>pointRadiusByRate(rctx.raw?.r?.rate)+2,
+    backgroundColor:CLUSTER_COLORS[ci],
+    borderColor:'#fff',
+    borderWidth:1.8
+  })).filter(ds=>ds.data.length);
+  if(charts.financeScatter) charts.financeScatter.destroy();
+  charts.financeScatter=new Chart(canvas.getContext('2d'),{
+    plugins:[financeQuadrantPlugin],
+    data:{datasets:[
+      ...clusterDatasets,
+      {type:'line',label:'평균 수입',data:[{x:avgX,y:minY},{x:avgX,y:maxY}],borderColor:'rgba(124,58,237,.55)',borderDash:[5,5],pointRadius:0,borderWidth:1.5},
+      {type:'line',label:'평균 비용',data:[{x:minX,y:avgY},{x:maxX,y:avgY}],borderColor:'rgba(217,119,6,.55)',borderDash:[5,5],pointRadius:0,borderWidth:1.5}
+    ]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:true,position:'bottom',labels:{boxWidth:10,font:{size:10},filter:item=>!String(item.text).startsWith('평균')}},financeQuadrantPlugin:{avgX,avgY},tooltip:{callbacks:{label:c=>{const r=c.raw?.r;if(!r)return c.dataset.label;return `${r.name} · ${r.clusterName} · ${r.typeLabel||financeTypeLabel(r.type)} · ${r.rateLabel} ${pctTxt(r.rate)} · 수입 ${won(r.salesPerCap)} / 비용 ${won(r.costPerCap)}`;}}}},scales:{x:{type:'linear',min:minX,max:maxX,title:{display:true,text:`${cfg.incomeLabel}(원/명)`}},y:{min:minY,max:maxY,title:{display:true,text:`${cfg.costLabel}(원/명)`}}}}
+  });
+}
+function pointRadiusByRate(rate){
+  const v=(Number(rate)||0)*100;
+  if(v<22) return 5;
+  if(v<34) return 7;
+  return 9;
+}
+function matrixPointPositions(n){
+  const layouts={1:[[50,52]],2:[[43,51],[58,49]],3:[[39,47],[58,43],[50,63]],4:[[36,44],[55,42],[44,63],[65,61]],5:[[32,44],[47,40],[62,44],[40,64],[56,63]]};
+  return layouts[Math.min(n,5)] || layouts[5];
+}
+function clusterShape(cluster){return 'circle';}
+function matrixPointSize(rate){
+  const v=(Number(rate)||0)*100;
+  if(v<22) return 28;
+  if(v<34) return 36;
+  return 44;
+}
+function renderFinanceMatrix(){
+  const el=document.getElementById('finance-matrix');
+  if(!el) return;
+  const rows=financeRows(financeTarget);
+  let html='<div class="matrix-plot-table">';
+  html+='<div class="matrix-corner"></div>';
+  FINANCE_TYPE_ORDER.forEach(t=>{const m=FINANCE_TYPE_META[t]; html+=`<div class="matrix-col-head" style="background:${m.bg};border-top:4px solid ${m.color}"><div>${m.label}</div></div>`;});
+  FINANCE_CLUSTER_ROWS.forEach(cluster=>{
+    const sample=rows.find(r=>r.clusterName===cluster);
+    const cidx=sample?sample.cluster:CLUSTER_NAMES.findIndex(n=>n.includes(cluster));
+    const ccol=CLUSTER_COLORS[cidx]||'#64748b';
+    html+=`<div class="matrix-row-head" style="color:${ccol}">${cluster}</div>`;
+    FINANCE_TYPE_ORDER.forEach(type=>{
+      const meta=FINANCE_TYPE_META[type];
+      const arr=rows.filter(r=>r.clusterName===cluster && r.type===type).sort((a,b)=>a.name.localeCompare(b.name,'ko'));
+      const occupied=arr.length>0;
+      const key=`${financeTarget}__${cluster}__${type}`;
+      const selected=selectedFinanceCellKey===key;
+      const scen=scenarioIdForCell(cluster,type);
+      const positions=matrixPointPositions(arr.length);
+      const points=arr.map((r,i)=>{const p=positions[i%positions.length], col=CLUSTER_COLORS[r.cluster]||meta.color, shape=clusterShape(r.clusterName), size=matrixPointSize(r.rate); return `<div class="matrix-point ${shape}" style="--pt:${size}px;left:${p[0]}%;top:${p[1]}%;color:${col};background:rgba(255,255,255,.88)" title="${r.name} · ${r.scenarioId} · ${r.rateLabel} ${pctTxt(r.rate)}"><span>${r.name}</span></div>`;}).join('');
+      html+=`<div class="matrix-cell ${occupied?'occupied':''} ${selected?'selected':''}" ${occupied?`onclick="showFinanceMatrixDetail('${cluster}','${type}',this)"`:''} style="background:${meta.bg}">
+        <div class="matrix-scenario-no">${scen}</div>
+        ${occupied?points:'<div class="matrix-empty-note">EMPTY</div>'}
+      </div>`;
+    });
+  });
+  html+='<div class="matrix-corner"></div>';
+  FINANCE_TYPE_ORDER.forEach(t=>{const m=FINANCE_TYPE_META[t]; html+=`<div class="matrix-x-label"><div>${m.label}</div></div>`;});
+  html+='</div>';
+  html+=`<div class="matrix-legend">
+    <span class="matrix-legend-item"><span class="matrix-legend-symbol circle" style="background:${CLUSTER_COLORS[0]}"></span>상업형</span>
+    <span class="matrix-legend-item"><span class="matrix-legend-symbol circle" style="background:${CLUSTER_COLORS[1]}"></span>주거형</span>
+    <span class="matrix-legend-item"><span class="matrix-legend-symbol circle" style="background:${CLUSTER_COLORS[2]}"></span>유동집중형</span>
+    <span class="matrix-legend-item"><span class="matrix-legend-symbol circle" style="background:${CLUSTER_COLORS[3]}"></span>혼합형</span>
+    <span class="matrix-legend-item">점 크기 = ${getFinanceTargetConfig(financeTarget).rateLabel}</span>
+  </div>`;
+  el.innerHTML=html;
+}
+function showFinanceMatrixDetail(cluster,type,el){
+  selectedFinanceCellKey=`${financeTarget}__${cluster}__${type}`;
+  document.querySelectorAll('.matrix-cell').forEach(c=>c.classList.remove('selected'));
+  if(el) el.classList.add('selected');
+  const cfg=getFinanceTargetConfig(financeTarget);
+  const rows=financeRows(financeTarget).filter(r=>r.clusterName===cluster && r.type===type);
+  const meta=FINANCE_TYPE_META[type] || {color:'var(--teal)',short:type};
+  const guText=rows.map(r=>r.name).join(' · ')||'해당 자치구 없음';
+  const scen=scenarioIdForCell(cluster,type);
+  const title=`${scen} ${cluster} × ${financeTypeLabel(type)}`;
+  const avgRate=rows.length?mean(rows.map(r=>r.rate)):0;
+  const avgUnrec=rows.length?mean(rows.map(r=>r.unrecovered)):0;
+  const text=rows.length ? `${financeTypeText(type)} ${clusterPolicyText(cluster)}` : `${cluster} 중 ${financeTypeLabel(type)}에 해당하는 자치구는 없습니다. 정책 시나리오 번호만 유지하고 실제 배치 자치구는 없습니다.`;
+  const rec=rows[0]?policyRecommendation(rows[0]):null;
+  const policyHtml=rec?`<div class="scenario-policy-list">${rec.policies.slice(0,3).map(p=>`<div class="scenario-policy-item">${p}</div>`).join('')}</div>
+    <div class="scenario-levers">
+      <div class="scenario-lever"><div class="scenario-lever-label">추천 가격 조정</div><div class="scenario-lever-val" style="color:var(--teal)">${rec.rev>0?'+':''}${rec.rev}%</div></div>
+      <div class="scenario-lever"><div class="scenario-lever-label">일반 비용 절감</div><div class="scenario-lever-val" style="color:var(--red)">${rec.gen}%</div></div>
+      <div class="scenario-lever"><div class="scenario-lever-label">음식물 비용 절감</div><div class="scenario-lever-val" style="color:var(--amber)">${rec.food}%</div></div>
+    </div>`:'';
+  document.getElementById('finance-matrix-detail').innerHTML=`<div class="scenario-detail-title"><span style="color:${meta.color}">${title}</span></div>
+    <div class="scenario-detail-sub">분석 대상: ${cfg.label} · ${rows.length}개구: ${guText} · 평균 ${cfg.rateLabel} ${avgRate?pctTxt(avgRate):'-'} · 평균 미회수액 ${avgUnrec?Math.round(avgUnrec).toLocaleString()+'백만원':'-'}</div>
+    <div style="font-size:11px;color:var(--text2);line-height:1.65"><strong>특징:</strong> ${text}</div>
+    ${policyHtml}`;
+}
+/* ════════════════════════════════════════════════ */
+/* COMPACT POLICY SIMULATOR                         */
+/* ════════════════════════════════════════════════ */
+const POLICY_META = {
+  '분리배출 품질 개선': {icon:'🗂', desc:'분리배출 정확도를 높여 재활용 효율을 개선합니다.'},
+  '수집동선 최적화': {icon:'🚛', desc:'수거 경로를 최적화해 운반 비용을 절감합니다.'},
+  '수수료 소폭 조정': {icon:'💰', desc:'봉투 수수료를 단계적으로 소폭 조정합니다.'},
+  '수수료 단계 조정': {icon:'💰', desc:'봉투 수수료를 단계별로 조정해 회수력을 보강합니다.'},
+  '수집·운반 계약 효율화': {icon:'📋', desc:'수집·운반 위탁 계약 구조를 효율화합니다.'},
+  '음식물 처리방식 개선': {icon:'🍱', desc:'음식물 쓰레기 처리 방식을 개선해 비용을 절감합니다.'},
+  '다량배출원 관리': {icon:'🏢', desc:'다량배출 사업장을 집중 관리하여 비용을 절감합니다.'},
+  '처리비 원가 점검': {icon:'🧮', desc:'처리비 산정 구조를 점검하고 원가를 최적화합니다.'},
+  '상권 배출 집중 관리': {icon:'🏪', desc:'상권 중심 배출을 관리해 수거·운반 효율을 높입니다.'},
+  '현행 요금 안정': {icon:'⚖', desc:'현행 요금 체계를 안정적으로 유지합니다.'},
+  '감량 인센티브': {icon:'🎁', desc:'배출 감량 시 인센티브를 제공합니다.'},
+  '재활용 품질 개선': {icon:'♻', desc:'재활용 품질 관리 체계를 강화합니다.'},
+  'RFID·봉투제 보완': {icon:'📡', desc:'RFID·종량제 봉투 시스템을 보완합니다.'},
+  '분리배출 교육': {icon:'📚', desc:'주민 대상 분리배출 교육을 강화합니다.'},
+  '무단투기 관리': {icon:'🚫', desc:'무단투기 단속과 관리 체계를 강화합니다.'},
+  '상가·사업장 배출원 협약': {icon:'🤝', desc:'상가·사업장과 배출량 협약을 체결해 감량을 유도합니다.'},
+  '공동주택 RFID·감량 인센티브': {icon:'🏠', desc:'공동주택 RFID 시스템과 감량 인센티브를 도입합니다.'},
+  '역세권·상권 거점 분리배출함': {icon:'🚉', desc:'역세권·상권에 거점 분리배출함을 설치합니다.'},
+  '권역별 주거·상업 분리 처방': {icon:'🗺', desc:'권역별로 주거·상업 특성에 맞춘 정책을 적용합니다.'}
+};
+function policyMetaOf(name){return POLICY_META[name] || {icon:'📌', desc:'세부 실행 전략을 마련합니다.'};}
+let selectedPolicyDefaultsApplied=false;
+function policyRecommendation(row){
+  const base={rev:5,gen:6,food:6,title:'균형형 정책 패키지',policies:['분리배출 품질 개선','수집동선 최적화','수수료 소폭 조정']};
+  if(row.type==='분자↓·분모↑' || row.type==='저수입 고비용') Object.assign(base,{rev:8,gen:12,food:10,title:'재정 회수력 보강 + 처리비 절감 패키지',policies:['수수료 단계 조정','수집·운반 계약 효율화','음식물 처리방식 개선']});
+  if(row.type==='분자↑·분모↑' || row.type==='고수입 고비용') Object.assign(base,{rev:2,gen:10,food:8,title:'고비용 구조 개선 패키지',policies:['다량배출원 관리','처리비 원가 점검','상권 배출 집중 관리']});
+  if(row.type==='분자↑·분모↓' || row.type==='고수입 저비용') Object.assign(base,{rev:0,gen:5,food:5,title:'회수력 유지 + 감량 인센티브 패키지',policies:['현행 요금 안정','감량 인센티브','재활용 품질 개선']});
+  if(row.type==='분자↓·분모↓' || row.type==='저수입 저비용') Object.assign(base,{rev:5,gen:6,food:8,title:'기초 회수력 강화 패키지',policies:['RFID·봉투제 보완','분리배출 교육','무단투기 관리']});
+  if(row.clusterName.includes('상업')){base.policies.unshift('상가·사업장 배출원 협약'); base.rev=Math.max(base.rev,6);}
+  else if(row.clusterName.includes('주거')){base.policies.unshift('공동주택 RFID·감량 인센티브'); base.food=Math.max(base.food,10);}
+  else if(row.clusterName.includes('유동')){base.policies.unshift('역세권·상권 거점 분리배출함'); base.gen=Math.max(base.gen,8);}
+  else {base.policies.unshift('권역별 주거·상업 분리 처방');}
+  base.policies=[...new Set(base.policies)].slice(0,4);
+  return base;
+}
+
+function policyRows(){
+  return financeRows('general').map(r=>({...r, type:r.type, typeLabel:r.typeLabel}));
+}
+function getPolicyRowByGu(name){return policyRows().find(r=>r.name===name);}
+function getBagPriceRecord(name){return FINANCE?.bagPriceGeneral?.[name] || {};}
+function getPolicyElasticity(row){
+  const e=FINANCE?.priceElasticityByCluster?.[row.cluster];
+  if(Number.isFinite(Number(e))) return Number(e);
+  const old=FINANCE?.bagElasticity?.[row.cluster];
+  return Number.isFinite(Number(old))?Number(old):-0.10;
+}
+function getVariableCostShare(){
+  const v=Number(FINANCE?.variableCostShare);
+  return Number.isFinite(v)?Math.max(0,Math.min(1,v)):0.35;
+}
+function policyPriceNote(row,rev){
+  const rec=getBagPriceRecord(row.name);
+  const base=Number(rec.weightedAvg)||0;
+  if(!base) return '가중평균봉투단가 변화: 데이터 없음';
+  const after=base*(1+rev/100);
+  const delta=after-base;
+  return `가중평균봉투단가 ${Math.round(base).toLocaleString()}원 → ${Math.round(after).toLocaleString()}원 (${delta>=0?'+':''}${Math.round(delta).toLocaleString()}원)`;
+}
+
+function initPolicySimulator(){
+  const sel=document.getElementById('policy-gu');
+  if(!sel || typeof FINANCE==='undefined') return;
+  if(sel.children.length===0){
+    GU.forEach((d,i)=>sel.add(new Option(d.n,i)));
+    sel.value=document.getElementById('sim-gu')?.value || 0;
+  }
+  updatePolicyGu(true);
+}
+
+function updatePolicyGu(applyDefaults=false){
+  const sel=document.getElementById('policy-gu');
+  if(!sel) return;
+  const d=GU[+sel.value||0];
+  const row=getPolicyRowByGu(d.n);
+  if(!row) return;
+  const reco=policyRecommendation(row);
+  if(applyDefaults){
+    document.getElementById('policy-rev').value=reco.rev;
+    document.getElementById('policy-gen').value=reco.gen;
+    document.getElementById('policy-food').value=reco.food;
+  }
+  runPolicySim();
+}
+
+function applyPolicyRecommendation(){
+  const sel=document.getElementById('policy-gu');
+  if(!sel || typeof FINANCE==='undefined') return;
+  const d=GU[+sel.value||0];
+  const row=getPolicyRowByGu(d.n);
+  if(!row) return;
+  const reco=policyRecommendation(row);
+  document.getElementById('policy-rev').value=reco.rev;
+  document.getElementById('policy-gen').value=reco.gen;
+  document.getElementById('policy-food').value=reco.food;
+  runPolicySim();
+}
+
+function runPolicySim(){
+  if(typeof FINANCE==='undefined') return;
+  const gi=+document.getElementById('policy-gu')?.value||0;
+  const d=GU[gi]; if(!d) return;
+  const row=getPolicyRowByGu(d.n); if(!row) return;
+  const rev=+document.getElementById('policy-rev').value||0;
+  const gen=+document.getElementById('policy-gen').value||0;
+  const food=+document.getElementById('policy-food').value||0;
+  document.getElementById('policy-rev-v').textContent=(rev>0?'+':'')+rev+'%';
+  document.getElementById('policy-gen-v').textContent=gen+'%';
+  document.getElementById('policy-food-v').textContent=food+'%';
+  const priceNote=document.getElementById('policy-price-note');
+  if(priceNote) priceNote.textContent=policyPriceNote(row,rev);
+
+  const genIncome=row.genIncome, genCost=row.genCost;
+  const foodIncome=row.foodIncome, foodCost=row.foodCost;
+  const beforeIncome=genIncome+foodIncome;
+  const beforeCost=genCost+foodCost;
+  const beforeBurden=beforeCost>0?beforeIncome/beforeCost:0;
+  const beforeUnrec=Math.max(beforeCost-beforeIncome,0);
+
+  const elasticity=getPolicyElasticity(row);
+  const priceFactor=Math.max(0.01,1+rev/100);
+  const volumeFactor=Math.max(0.35,1+(elasticity*rev/100));
+  const variableCostShare=getVariableCostShare();
+  const costVolumeFactor=1+((volumeFactor-1)*variableCostShare);
+
+  const afterGenIncome=genIncome*priceFactor*volumeFactor;
+  const afterFoodIncome=foodIncome*priceFactor*volumeFactor;
+  const afterGenCost=genCost*costVolumeFactor*(1-gen/100);
+  const afterFoodCost=foodCost*costVolumeFactor*(1-food/100);
+  const afterIncome=afterGenIncome+afterFoodIncome;
+  const afterCost=afterGenCost+afterFoodCost;
+  const afterBurden=afterCost>0?afterIncome/afterCost:0;
+  const afterUnrec=Math.max(afterCost-afterIncome,0);
+  const curFiscal=row.fiscal || 0;
+  const incomeTotal=FINANCE.incomeTotal?.[row.name]??beforeIncome;
+  const expenseTotal=FINANCE.expenseTotal?.[row.name]??beforeCost;
+  const afterFiscal=(incomeTotal+(afterIncome-beforeIncome))/(expenseTotal-(beforeCost-afterCost));
+  const reco=policyRecommendation(row);
+  const beforeWaste=Number(row.gu?.daily)||0;
+  const afterWaste=beforeWaste*volumeFactor;
+  const wasteChangeRate=volumeFactor-1;
+  const wasteReduction=beforeWaste-afterWaste;
+  const costSaving=beforeCost-afterCost;
+
+  const allPolicyRows=policyRows();
+  const seoulIncome=allPolicyRows.reduce((a,r)=>a+(Number(r.integratedIncome)||0),0);
+  const seoulCost=allPolicyRows.reduce((a,r)=>a+(Number(r.integratedCost)||0),0);
+  const seoulBurden=seoulCost>0?seoulIncome/seoulCost:0;
+  const seoulUnrecAvg=mean(allPolicyRows.map(r=>Number(r.integratedUnrecovered)||0));
+  const burdenDeltaP=(afterBurden-beforeBurden)*100;
+  const burdenDeltaText=`${burdenDeltaP>=0?'+':''}${burdenDeltaP.toFixed(1)}%p ${burdenDeltaP>=0?'상승':'하락'}`;
+  const unrecImprove=beforeUnrec-afterUnrec;
+  const unrecImproveText=unrecImprove>=0
+    ? `${Math.round(unrecImprove).toLocaleString()}백만원 개선`
+    : `${Math.round(Math.abs(unrecImprove)).toLocaleString()}백만원 악화`;
+
+  document.getElementById('policy-kpis').innerHTML=`
+    <div class="policy-compare-grid" style="grid-column:1/-1;width:100%">
+      <div class="policy-compare-card">
+        <div class="policy-compare-title">일반·음식물 통합 주민부담률</div>
+        <div class="policy-compare-flow">
+          <div class="policy-compare-box current">
+            <div class="policy-compare-label">현재 상태 주민부담률</div>
+            <div class="policy-compare-val">${pctTxt(beforeBurden)}</div>
+            <div class="policy-compare-sub">서울시 평균 ${pctTxt(seoulBurden)}</div>
+          </div>
+          <div class="policy-compare-arrow">→</div>
+          <div class="policy-compare-box after">
+            <div class="policy-compare-label">시뮬레이션 결과</div>
+            <div class="policy-compare-val">${pctTxt(afterBurden)}</div>
+            <div class="policy-compare-sub">${burdenDeltaText}</div>
+          </div>
+        </div>
+      </div>
+      <div class="policy-compare-card">
+        <div class="policy-compare-title">통합 미회수액</div>
+        <div class="policy-compare-flow">
+          <div class="policy-compare-box current">
+            <div class="policy-compare-label">현재 상태 미회수액</div>
+            <div class="policy-compare-val">${Math.round(beforeUnrec).toLocaleString()}</div>
+            <div class="policy-compare-sub">백만원 · 서울시 평균 ${Math.round(seoulUnrecAvg).toLocaleString()}백만원</div>
+          </div>
+          <div class="policy-compare-arrow">→</div>
+          <div class="policy-compare-box after">
+            <div class="policy-compare-label">시뮬레이션 결과</div>
+            <div class="policy-compare-val">${Math.round(afterUnrec).toLocaleString()}</div>
+            <div class="policy-compare-sub">백만원 · ${unrecImproveText}</div>
+          </div>
+        </div>
+      </div>
+    </div>`;
+
+  document.getElementById('policy-reco-title').innerHTML=`👍 ${row.name} 추천: ${reco.title}`;
+  const strategiesHtml = reco.policies.map(p=>{
+    const m = policyMetaOf(p);
+    return `<div class="reco-strategy"><div class="reco-strategy-icon">${m.icon}</div><div><div class="reco-strategy-title">${p}</div><div class="reco-strategy-desc">${m.desc}</div></div></div>`;
+  }).join('');
+  document.getElementById('policy-reco-text').innerHTML=`
+    <div class="policy-reco-pills">
+      <span class="finance-type-pill">${row.clusterName}</span>
+      <span class="finance-type-pill">${row.typeLabel||financeTypeLabel(row.type)}</span>
+      <span class="finance-type-pill">탄력성 ${elasticity.toFixed(2)}</span>
+    </div>
+    <div class="reco-grid">
+      <div class="reco-col">
+        <div class="reco-col-title">추천 정책 <span style="font-weight:500;color:var(--text3);font-size:12px">(슬라이더 연동 항목)</span></div>
+        <div class="reco-col-sub">▼ 이 항목들이 시뮬레이션 결과에 반영됩니다</div>
+        <div class="reco-metrics">
+          <div class="reco-metric rev"><div class="reco-metric-label">💰 수수료 인상</div><div class="reco-metric-val">+${reco.rev}%</div></div>
+          <div class="reco-metric gen"><div class="reco-metric-label">🟠 일반 비용 절감</div><div class="reco-metric-val">${reco.gen}%</div></div>
+          <div class="reco-metric food"><div class="reco-metric-label">🟣 음식물 비용 절감</div><div class="reco-metric-val">${reco.food}%</div></div>
+        </div>
+        <button class="reco-apply-btn" onclick="applyPolicyRecommendation()">✨ 이 정책 적용하기</button>
+        <div class="reco-apply-note">추천 정책을 적용하면 좌측 슬라이더가 위 값으로 자동 설정됩니다.</div>
+      </div>
+      <div class="reco-col">
+        <div class="reco-col-title">실행 전략 <span style="font-weight:500;color:var(--text3);font-size:12px">(운영 가이드)</span></div>
+        <div class="reco-col-sub">선택한 정책을 효과적으로 실행하기 위한 권고 사항입니다.</div>
+        <div class="reco-strategies">${strategiesHtml}</div>
+      </div>
+    </div>
+  `;
+
+  renderPolicyCharts(row,{beforeBurden,afterBurden,beforeUnrec,afterUnrec,curFiscal,afterFiscal,afterIncome,afterCost,beforeIncome,beforeCost,beforeWaste,afterWaste,wasteReduction,wasteChangeRate,volumeFactor,priceFactor,elasticity,costSaving,afterGenIncome,afterFoodIncome,afterGenCost,afterFoodCost});
+}
+
+const policyValueLabelPlugin = {
+  id:'policyValueLabelPlugin',
+  afterDatasetsDraw(chart, args, opts){
+    if(!opts || !opts.labels) return;
+    const {ctx, chartArea, scales}=chart;
+    const meta=chart.getDatasetMeta(0);
+    const yScale=scales.y;
+    ctx.save();
+    ctx.font='700 10px JetBrains Mono, monospace';
+    ctx.textAlign='center';
+    ctx.textBaseline='bottom';
+    ctx.fillStyle='#1a2332';
+    meta.data.forEach((bar,i)=>{
+      const raw=chart.data.datasets[0].data[i];
+      const topVal=Array.isArray(raw) ? Math.max(...raw) : raw;
+      let y=yScale.getPixelForValue(topVal)-6;
+      if(y < chartArea.top + 12){y=yScale.getPixelForValue(topVal)+14;ctx.textBaseline='top';}else{ctx.textBaseline='bottom';}
+      ctx.fillText(opts.labels[i]||'', bar.x, y);
+    });
+    ctx.restore();
+  }
+};
+
+function renderPolicyCharts(row,after){
+  renderPolicyPositionChart(row,after);
+  renderPolicyWasteChart(row,after);
+}
+
+function renderPolicyWasteChart(row,after){
+  const canvas=document.getElementById('policy-contribution-chart');
+  if(!canvas) return;
+  if(charts.policyContribution) charts.policyContribution.destroy();
+  const before=after.beforeWaste||0;
+  const afterVal=after.afterWaste||0;
+  const changeRate=after.wasteChangeRate||0;
+  const rateEl=document.getElementById('policy-waste-change-rate');
+  if(rateEl) rateEl.textContent=`: ${changeRate>=0?'+':''}${(changeRate*100).toFixed(2)}%`;
+  const maxY=Math.max(before,afterVal)*1.18 || 1;
+  charts.policyContribution=new Chart(canvas.getContext('2d'),{
+    type:'bar',
+    plugins:[policyValueLabelPlugin,policyWasteArrowPlugin],
+    data:{labels:['현재 배출량','정책 후 배출량'],datasets:[{label:'톤/일',data:[before,afterVal],backgroundColor:['rgba(100,116,139,.42)','rgba(0,153,117,.70)'],borderColor:['rgba(100,116,139,.9)','rgba(0,153,117,.95)'],borderWidth:1.2,borderRadius:9,barThickness:46}]},
+    options:{responsive:true,maintainAspectRatio:false,layout:{padding:{top:34,right:14,bottom:8,left:8}},plugins:{legend:{display:false},policyValueLabelPlugin:{labels:[`${before.toFixed(1)}t`,`${afterVal.toFixed(1)}t`]},policyWasteArrowPlugin:{changeRate},tooltip:{callbacks:{label:c=>`${c.label}: ${Number(c.raw).toFixed(2)}톤/일`,afterBody:()=>`가격탄력성 ${after.elasticity.toFixed(2)} · 배출량 변화율 ${(changeRate*100).toFixed(2)}%`}}},scales:{x:{grid:{display:false},ticks:{font:{size:10},maxRotation:0,minRotation:0,autoSkip:false}},y:{beginAtZero:true,max:maxY,title:{display:true,text:'배출량(톤/일)',font:{size:10}},ticks:{font:{size:9},callback:v=>Number(v).toLocaleString()},grid:{color:'rgba(0,0,0,.05)'}}}}
+  });
+}
+
+const policyWasteArrowPlugin={
+  id:'policyWasteArrowPlugin',
+  afterDatasetsDraw(chart,args,opts){
+    const meta=chart.getDatasetMeta(0);
+    if(!meta || meta.data.length<2) return;
+    const b0=meta.data[0], b1=meta.data[1];
+    const ctx=chart.ctx;
+    const area=chart.chartArea;
+    const y=area.top + (area.bottom-area.top)*0.46;
+    const x0=b0.x+28, x1=b1.x-28;
+    const angle=Math.atan2(0,x1-x0);
+    ctx.save();
+    ctx.strokeStyle='rgba(220,38,38,.95)';
+    ctx.fillStyle='rgba(100,100,100,0.85)';
+    ctx.lineWidth=3.2;
+    ctx.lineCap='butt';
+    ctx.beginPath();
+    ctx.moveTo(x0,y);
+    ctx.lineTo(x1,y);
+    ctx.stroke();
+    const size=10;
+    ctx.translate(x1,y);
+    ctx.rotate(angle);
+    ctx.beginPath();
+    ctx.moveTo(0,0);
+    ctx.lineTo(-size,-size*0.55);
+    ctx.lineTo(-size,size*0.55);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+  }
+};
+
+const policyArrowPlugin={
+  id:'policyArrowPlugin',
+  afterDatasetsDraw(chart,args,opts){
+    const ds=chart.data.datasets.find(d=>d.label==='이동 방향');
+    if(!ds || !ds.data || ds.data.length<2) return;
+    const meta=chart.getDatasetMeta(chart.data.datasets.indexOf(ds));
+    const p0=meta.data[0], p1=meta.data[1];
+    if(!p0 || !p1) return;
+    const ctx=chart.ctx;
+    const angle=Math.atan2(p1.y-p0.y,p1.x-p0.x);
+    const size=6;
+    const offset=9;
+    ctx.save();
+    ctx.translate(p1.x-Math.cos(angle)*offset,p1.y-Math.sin(angle)*offset);
+    ctx.rotate(angle);
+    ctx.fillStyle='rgba(100,100,100,0.85)';
+    ctx.beginPath();
+    ctx.moveTo(0,0); ctx.lineTo(-size,-size/2); ctx.lineTo(-size,size/2); ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+  }
+};
+
+function renderPolicyPositionChart(row,after){
+  const canvas=document.getElementById('policy-position-chart');
+  if(!canvas) return;
+  const rows=financeRows('general');
+  const beforeX=row.integratedIncome*1000000/row.pop;
+  const beforeY=row.integratedCost*1000000/row.pop;
+  const afterX=after.afterIncome*1000000/row.pop;
+  const afterY=after.afterCost*1000000/row.pop;
+  const avgX=mean(rows.map(r=>r.integratedIncome*1000000/r.pop));
+  const avgY=mean(rows.map(r=>r.integratedCost*1000000/r.pop));
+  const before={x:beforeX,y:beforeY,label:'현재'};
+  const afterPt={x:afterX,y:afterY,label:'정책 후'};
+  const allXs=rows.map(r=>r.integratedIncome*1000000/r.pop);
+  const allYs=rows.map(r=>r.integratedCost*1000000/r.pop);
+  const fullMinX=Math.min(...allXs), fullMaxX=Math.max(...allXs), fullMinY=Math.min(...allYs), fullMaxY=Math.max(...allYs);
+  const focusXs=[before.x,afterPt.x,avgX];
+  const focusYs=[before.y,afterPt.y,avgY];
+  const moveX=Math.abs(afterPt.x-before.x), moveY=Math.abs(afterPt.y-before.y);
+  const fullSpanX=Math.max(fullMaxX-fullMinX,1), fullSpanY=Math.max(fullMaxY-fullMinY,1);
+  const focusSpanX=Math.max(Math.max(...focusXs)-Math.min(...focusXs), moveX*2.2, fullSpanX*0.28, 1);
+  const focusSpanY=Math.max(Math.max(...focusYs)-Math.min(...focusYs), moveY*2.2, fullSpanY*0.28, 1);
+  let minX=Math.min(...focusXs)-focusSpanX*0.22, maxX=Math.max(...focusXs)+focusSpanX*0.22;
+  let minY=Math.min(...focusYs)-focusSpanY*0.22, maxY=Math.max(...focusYs)+focusSpanY*0.22;
+  // 선택 자치구와 서울 평균선을 중심으로 줌인하되, 4분면 기준선은 항상 화면 안에 남긴다.
+  if(avgX<=minX) minX=avgX-focusSpanX*0.08;
+  if(avgX>=maxX) maxX=avgX+focusSpanX*0.08;
+  if(avgY<=minY) minY=avgY-focusSpanY*0.08;
+  if(avgY>=maxY) maxY=avgY+focusSpanY*0.08;
+  if(charts.policyPosition) charts.policyPosition.destroy();
+  charts.policyPosition=new Chart(canvas.getContext('2d'),{
+    plugins:[financeQuadrantPlugin,policyArrowPlugin],
+    data:{datasets:[
+      {type:'scatter',label:'현재',data:[before],pointRadius:3,pointHoverRadius:4.5,pointStyle:'circle',backgroundColor:'rgba(248,113,113,0.25)',borderColor:'#f87171',borderWidth:1.8},
+      {type:'scatter',label:'정책 후',data:[afterPt],pointRadius:3,pointHoverRadius:4.5,pointStyle:'star',backgroundColor:'rgba(16,185,129,0.25)',borderColor:'#10b981',borderWidth:1.8},
+      {type:'line',label:'이동 방향',data:[before,afterPt],borderColor:'rgba(100,100,100,0.85)',borderDash:[2,2],pointRadius:0,borderWidth:1.6},
+      {type:'line',label:'평균 통합수입',data:[{x:avgX,y:minY},{x:avgX,y:maxY}],borderColor:'rgba(124,58,237,.45)',borderDash:[5,5],pointRadius:0,borderWidth:1},
+      {type:'line',label:'평균 통합비용',data:[{x:minX,y:avgY},{x:maxX,y:avgY}],borderColor:'rgba(217,119,6,.45)',borderDash:[5,5],pointRadius:0,borderWidth:1}
+    ]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom',labels:{boxWidth:10,font:{size:10},filter:item=>['현재','정책 후'].includes(item.text)}},financeQuadrantPlugin:{avgX,avgY},tooltip:{callbacks:{label:c=>`${c.dataset.label}: 통합수입 ${won(c.raw.x)} · 통합비용 ${won(c.raw.y)}`}}},scales:{x:{type:'linear',min:minX,max:maxX,title:{display:true,text:'1인당 통합 수입(원/명)',font:{size:10}},ticks:{font:{size:9}}},y:{min:minY,max:maxY,title:{display:true,text:'1인당 통합 비용(원/명)',font:{size:10}},ticks:{font:{size:9}}}}}
+  });
+}
+
+</script>
+
+<!-- Custom dropdown enhancer -->
+<script>
+(function(){
+  function initCS(sel){
+    if(!sel || sel.dataset.csInit) return;
+    sel.dataset.csInit='1';
+    sel.style.display='none';
+    const wrap=document.createElement('div');
+    wrap.className='cs-wrap';
+    if(sel.classList.contains('drop-sort')||sel.getAttribute('style')?.includes('width:auto'))wrap.classList.add('compact');
+    sel.parentNode.insertBefore(wrap,sel);
+    wrap.appendChild(sel);
+    const trigger=document.createElement('button');
+    trigger.type='button';
+    trigger.className='cs-trigger';
+    trigger.innerHTML='<span class="cs-text"></span><svg class="cs-arrow" width="12" height="8" viewBox="0 0 12 8" fill="none"><path stroke="#a78bfa" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M1 1l5 5 5-5"/></svg>';
+    wrap.appendChild(trigger);
+    const panel=document.createElement('div');
+    panel.className='cs-panel';
+    wrap.appendChild(panel);
+    function render(){
+      panel.innerHTML='';
+      Array.from(sel.options).forEach(opt=>{
+        const item=document.createElement('div');
+        item.className='cs-option'+(opt.value===sel.value?' active':'');
+        item.textContent=opt.text;
+        item.addEventListener('click',(e)=>{
+          e.stopPropagation();
+          sel.value=opt.value;
+          sel.dispatchEvent(new Event('change',{bubbles:true}));
+          close();
+          updateText();
+        });
+        panel.appendChild(item);
+      });
+    }
+    function updateText(){
+      const opt=sel.options[sel.selectedIndex];
+      trigger.querySelector('.cs-text').textContent=opt?opt.text:'선택하세요';
+    }
+    function open(){
+      document.querySelectorAll('.cs-panel.open').forEach(p=>p.classList.remove('open'));
+      document.querySelectorAll('.cs-trigger.open').forEach(t=>t.classList.remove('open'));
+      render();
+      panel.classList.add('open');
+      trigger.classList.add('open');
+    }
+    function close(){
+      panel.classList.remove('open');
+      trigger.classList.remove('open');
+    }
+    trigger.addEventListener('click',(e)=>{
+      e.stopPropagation();
+      if(panel.classList.contains('open'))close();
+      else open();
+    });
+    document.addEventListener('click',(e)=>{if(!wrap.contains(e.target))close();});
+    sel.addEventListener('change',updateText);
+    new MutationObserver(updateText).observe(sel,{childList:true,attributes:true,attributeFilter:['value']});
+    updateText();
+  }
+  function initAll(){document.querySelectorAll('select').forEach(initCS);}
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',initAll);
+  else initAll();
+  new MutationObserver(muts=>{
+    muts.forEach(m=>{
+      m.addedNodes.forEach(n=>{
+        if(n.nodeType!==1)return;
+        if(n.tagName==='SELECT')initCS(n);
+        if(n.querySelectorAll)n.querySelectorAll('select').forEach(initCS);
+      });
+    });
+  }).observe(document.body,{childList:true,subtree:true});
+})();
+</script>
+</body>
+</html>

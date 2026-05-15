@@ -70,9 +70,44 @@ df = pd.read_csv("C:/Users/본인이름/Desktop/waste_data.csv")
 ---
 
 
+## 🖥️ 최종 대시보드 보는 법
+
+> **별도 설치 없이 브라우저만 있으면 됩니다.**
+
+### 방법 1 — 최소 파일만 다운로드 (권장)
+
+대시보드 실행에 필요한 파일은 `apps/dashboard/` 폴더 전체입니다.
+
+```
+apps/dashboard/
+├── 통합대시보드.html   ← 이 파일을 열면 됩니다
+├── ch1/               (ch1.html, data.js)
+├── ch2/               (ch2.html, data2_1.js, data2_2.js, data2_3.js, data_finance_burden2023.js)
+├── ch3/               (ch3.html, data.js, facilities.js, distance_matrix.js, data_finance_burden2023.js)
+└── icons/
+```
+
+**다운로드 방법:**
+1. 이 레포 우측 상단 **`<> Code` → `Download ZIP`** 클릭
+2. 압축 해제 후 `apps/dashboard/` 폴더만 꺼내기
+3. `통합대시보드.html`을 더블클릭하여 브라우저로 열기
+
+> ⚠️ 반드시 **폴더 구조를 유지한 채** 열어야 합니다.  
+> `통합대시보드.html` 파일만 따로 빼면 ch1~ch3 데이터를 불러오지 못합니다.
+
+### 방법 2 — 레포 전체 클론 후 실행
+
+```bash
+git clone https://github.com/DGU-BAF/BAF-26-1-environment.git
+cd BAF-26-1-environment/apps/dashboard
+# 통합대시보드.html 을 브라우저로 열기
+```
+
+---
+
 ## 실행 방법
 
-### 2. 운영진용 (클론 → 실행)
+### 운영진용 (클론 → 실행)
 
 ```bash
 # 1) 레포 클론
@@ -83,23 +118,32 @@ cd BAF-26-1-environment
 pip install -r requirements.txt
 
 # 3) 대시보드 실행
-#    (구체적인 실행 명령어는 개발 완료 후 업데이트 예정)
+#    apps/dashboard/통합대시보드.html 을 브라우저로 열기
 ```
 
 
 ## 폴더 구조
 
 ```
-26-1-env-project/
-├── README.md          # 프로젝트 소개, 실행 방법, 폴더 구조 설명
-├── docs/              # 기획안, 회의록, 설계 문서, 발표 자료
-├── data/              # 원본 데이터, 전처리 데이터, 외부 수집 데이터
-├── src/               # EDA 노트북, 전처리 코드, 분석/모델링 코드
-├── outputs/           # 그래프, 결과 CSV, 모델 산출물, 리포트 결과물
-├── apps/              # 선택: 프론트엔드, 백엔드, API, 대시보드 코드
-├── infra/             # 선택: Docker, 배포, CI/CD, 클라우드 설정 파일
-├── .github/           # 선택: GitHub Actions, 이슈/PR 템플릿
-└── scripts/           # 선택: 실행, 자동화, 데이터 수집/전처리 스크립트
+BAF-26-1-environment/
+├── README.md
+├── apps/
+│   └── dashboard/          # 최종 통합 대시보드 (← 여기만 받으면 실행 가능)
+│       ├── 통합대시보드.html
+│       ├── ch1/            # Ch1. 현황 진단
+│       ├── ch2/            # Ch2. 원인 분석
+│       ├── ch3/            # Ch3. 처방 (민간 소각장 매칭 시뮬레이터 포함)
+│       └── icons/
+├── data/
+│   ├── raw/                # 원본 수집 데이터
+│   ├── processed/          # 전처리 완료 데이터
+│   └── final/              # 최종 통합 데이터셋
+├── src/                    # EDA 노트북 (.ipynb)
+├── outputs/                # 분석 산출물 (CSV, 리포트)
+├── scripts/                # 데이터 전처리·대시보드 빌드 Python 스크립트
+├── docs/
+│   └── screenshots/        # 대시보드 스크린샷
+└── infra/                  # 배포·인프라 설정
 ```
 
 ## 팀원

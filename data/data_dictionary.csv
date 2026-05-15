@@ -1,0 +1,69 @@
+서울시 자치구별 쓰레기 발생 구조 진단 데이터 사전 (Data Dictionary),,,,
+======================================================================,,,,
+[1] waste_by_district_year  자치구 × 연도 폐기물 통합 (125행 = 25구 × 5년),,,,
+name,type,변수설명,unit,source
+district,C,[key] 자치구명,-,-
+year,N,[key] 연도 (2020~2024),연,-
+living_waste,N,[원본] 생활계폐기물 발생량,톤/년,생활계폐기물_발생량및처리현황
+living_recycle,N,[원본] 생활계폐기물 재활용량,톤/년,생활계폐기물_발생량및처리현황
+living_incineration,N,[원본] 생활계폐기물 소각량,톤/년,생활계폐기물_발생량및처리현황
+living_landfill,N,[원본] 생활계폐기물 매립량,톤/년,생활계폐기물_발생량및처리현황
+industrial_waste,N,[원본] 사업장배출시설계폐기물 발생량,톤/년,사업장배출시설계폐기물_발생량및처리현황
+construction_waste,N,[원본] 건설폐기물 발생량,톤/년,건설폐기물_발생량및처리현황
+designated_waste,N,[원본] 지정폐기물 발생량,톤/년,지정폐기물_발생량및처리현황
+per_capita_living_waste,N,[원본] 1인당 생활폐기물 발생량,kg/인·일,주민1인당_생활계폐기물배출량
+total_waste,N,[원본] 총폐기물 발생량,톤/년,쓰레기_수거현황
+total_recycle,N,[원본] 총폐기물 재활용량,톤/년,쓰레기_수거현황
+total_incineration,N,[원본] 총폐기물 소각량,톤/년,쓰레기_수거현황
+total_landfill,N,[원본] 총폐기물 매립량,톤/년,쓰레기_수거현황
+household_waste,N,[파생] 가정폐기물 발생량 추정 = living_waste × (population / (workers + population)),톤/년,-
+biz_nonbiz_waste,N,[파생] 사업장비배출시설계폐기물 발생량 추정 = living_waste × (workers / (workers + population)),톤/년,-
+recycle_rate,N,[파생] 생활계 재활용률 = living_recycle / living_waste,0~1,-
+incineration_rate,N,[파생] 생활계 소각률 = living_incineration / living_waste,0~1,-
+landfill_rate,N,[파생] 생활계 매립률 = living_landfill / living_waste,0~1,-
+total_recycle_rate,N,[파생] 총폐기물 재활용률 = total_recycle / total_waste,0~1,-
+total_incineration_rate,N,[파생] 총폐기물 소각률 = total_incineration / total_waste,0~1,-
+total_landfill_rate,N,[파생] 총폐기물 매립률 = total_landfill / total_waste,0~1,-
+[데이터 품질 검증 결과],,,,
+항목,결과,비고,,
+결측값,0건,전 변수 결측 없음,,
+분모=0 케이스,0건,living_waste / total_waste / (workers+population) 모두 0 없음 → EPS 처리 실제 미작동,,
+비율 범위 이탈 (0~1 초과),0건,클리핑 실제 미작동,,
+생활계 비율 합계 < 0.99,31건,기타 처리(재이용 등) 비중 존재 ? 정상 데이터,,
+총폐기물 비율 합계 < 0.99,31건,기타 처리 비중 존재 ? 정상 데이터,,
+======================================================================,,,,
+[2] district_population  자치구 × 연도 등록인구 · 종사자수 (125행 = 25구 × 5년),,,,
+name,type,변수설명,unit,source
+district,C,[key] 자치구명,-,-
+year,N,[key] 연도 (2020~2024),연,-
+population,N,[원본] 주민등록인구,명,등록인구_연령별_동별
+workers,N,[원본] 종사자수,명,사업체현황_종사자규모별_동별
+[데이터 품질 검증 결과],,,,
+항목,결과,비고,,
+결측값,0건,전 변수 결측 없음,,
+population <= 0,0건,이상값 없음,,
+workers <= 0,0건,이상값 없음,,
+======================================================================,,,,
+[3] district_coords  자치구별 위도·경도 (25행),,,,
+name,type,변수설명,unit,source
+district,C,[key] 자치구명,-,-
+lat,N,[원본] 위도 (WGS84 기준),°,gu.csv
+lng,N,[원본] 경도 (WGS84 기준),°,gu.csv
+[데이터 품질 검증 결과],,,,
+항목,결과,비고,,
+결측값,0건,전 변수 결측 없음,,
+위도 범위 이탈,0건,전 자치구 37.4~37.7° 이내,,
+경도 범위 이탈,0건,전 자치구 126.7~127.2° 이내,,
+======================================================================,,,,
+[4] facility_2024  시설별 월별 소각 데이터,,,,
+name,type,변수설명,unit,source
+facility,C,[key] 시설명 (양천 / 강남 / 노원 / 마포),-,-
+year,N,[key] 연도,연,-
+month,C,"[key] 월 (1~12, total)",-,자원회수시설 홈페이지
+in_ton,N,[원본] 월별 반입량 합계,톤/월,자원회수시설 홈페이지
+in_avg,N,[원본] 월별 반입 일평균,톤/일,자원회수시설 홈페이지
+inc_ton,N,[원본] 월별 소각량 합계,톤/월,자원회수시설 홈페이지
+inc_avg,N,[원본] 월별 소각 일평균,톤/일,자원회수시설 홈페이지
+util_rate,N,[원본] 가동률,%,자원회수시설 홈페이지
+======================================================================,,,,
+type 표기: C = 문자형(Character) / N = 숫자형(Numeric),,,,

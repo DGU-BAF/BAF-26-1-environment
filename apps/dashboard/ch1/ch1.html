@@ -1,0 +1,2234 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>서울시 자치구별 쓰레기 발생 구조 진단 대시보드</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="data.js"></script>
+<style>
+:root {
+  --bg:#f4f2fa; --bg2:#ffffff; --bg3:#efebf7; --bg4:#e5dff2;
+  --border:rgba(124,58,237,.08); --border2:rgba(124,58,237,.16);
+  --text:#2a2440; --text2:#5e587a; --text3:#9189a8;
+  --green:#34d399; --green2:#10b981; --green-bg:rgba(52,211,153,.12); --green-light:#d1fae5;
+  --red:#f87171; --red-bg:rgba(248,113,113,.12); --red-light:#fee2e2;
+  --blue:#818cf8; --blue-bg:rgba(129,140,248,.12);
+  --amber:#fbbf24; --amber-bg:rgba(251,191,36,.15);
+  --purple:#a78bfa; --purple-bg:rgba(167,139,250,.12);
+  --mono:'JetBrains Mono',monospace; --sans:'Noto Sans KR',sans-serif;
+  --shadow:0 2px 8px rgba(124,58,237,.04);
+  --shadow2:0 4px 20px rgba(124,58,237,.06);
+  --panel-width: 520px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15px;min-height:100vh}
+
+/* HEADER */
+.header{display:flex;align-items:center;justify-content:space-between;padding:12px 24px;border-bottom:1px solid var(--border);background:var(--bg2);position:sticky;top:0;z-index:200;box-shadow:var(--shadow)}
+.logo{display:flex;align-items:center;gap:10px}
+.logo-mark{width:32px;height:32px;background:var(--green);color:#fff;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:15px;flex-shrink:0}
+.logo-text{font-size:14px;font-weight:700;letter-spacing:-.2px}
+.logo-sub{font-size:10px;color:var(--text3);font-family:var(--mono);margin-top:1px}
+.header-meta{font-size:10px;color:var(--text3);font-family:var(--mono);text-align:right;line-height:1.6}
+
+/* TABS */
+.tabs{display:flex;gap:4px;padding:10px 24px;border-bottom:1px solid var(--border);background:var(--bg2);overflow-x:auto}
+.tab{padding:8px 16px;border-radius:7px;cursor:pointer;font-size:12px;font-weight:500;color:var(--text2);transition:all .15s;border:1px solid transparent;white-space:nowrap;display:flex;align-items:center;gap:6px}
+.tab:hover{color:var(--text);background:var(--bg3)}
+.tab.active{color:var(--green);background:var(--green-bg);border-color:rgba(5,150,105,.25)}
+.tab-num{font-family:var(--mono);font-size:10px;opacity:.6;font-weight:600}
+.tab-label{font-size:13px;font-weight:700}
+.tab-desc{font-size:10px;color:var(--text3);font-family:var(--mono)}
+
+/* PAGES */
+.page{display:none;padding:20px 24px 60px;animation:fadeIn .2s ease}
+.page.active{display:block}
+@keyframes fadeIn{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:none}}
+
+/* SECTION */
+.section-header{display:flex;align-items:center;gap:12px;margin:32px 0 18px;padding-top:4px}
+.section-header:first-child{margin-top:0}
+.section-badge{font-family:var(--mono);font-size:13px;color:var(--purple);background:var(--purple-bg);border:1px solid rgba(167,139,250,.3);border-radius:6px;padding:5px 10px;font-weight:700;flex-shrink:0;letter-spacing:-.2px}
+.section-title{font-size:22px;font-weight:700;letter-spacing:-.5px}
+.section-meta{font-size:12px;color:var(--text3);font-family:var(--mono);margin-left:auto}
+
+/* PANELS */
+.panel{background:var(--bg2);border:1px solid var(--border);border-radius:14px;padding:18px;overflow:hidden;box-shadow:var(--shadow)}
+.panel-title{font-size:17px;font-family:var(--sans);color:var(--text);text-transform:none;letter-spacing:-.2px;margin-bottom:14px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-weight:700}
+.panel-badge{font-size:9px;background:var(--bg3);border:1px solid var(--border2);border-radius:3px;padding:2px 6px;color:var(--text2);font-family:var(--mono);text-transform:none;letter-spacing:0;white-space:nowrap}
+.panel-badge.warn{color:var(--amber);background:var(--amber-bg);border-color:rgba(217,119,6,.3)}
+
+/* KPI CARDS */
+.kpi-row{display:grid;gap:14px;margin-bottom:16px}
+.kpi-row.k4{grid-template-columns:repeat(4,1fr)}
+.kpi-row.k3{grid-template-columns:repeat(3,1fr)}
+.kpi{background:var(--bg2);border:1px solid var(--border);border-radius:16px;padding:22px 24px;position:relative;overflow:hidden;display:grid;grid-template-columns:auto 1fr;grid-template-areas:"icon label" "icon val" "icon sub";column-gap:18px;row-gap:4px;align-items:center;box-shadow:var(--shadow2)}
+.kpi-label{grid-area:label;font-size:15px;font-family:var(--sans);color:var(--text2);margin-bottom:0;text-transform:none;letter-spacing:-.1px;display:flex;align-items:center;gap:6px;font-weight:500}
+.kpi-val{grid-area:val;font-size:34px;font-weight:700;font-family:var(--mono);letter-spacing:-1.6px;line-height:1.05;display:flex;align-items:baseline;gap:6px;white-space:nowrap}
+.kpi-unit{font-size:15px;font-weight:500;color:var(--text2)}
+.kpi-sub{grid-area:sub;font-size:12px;color:var(--text3);margin-top:2px;font-family:var(--mono)}
+.kpi-icon{grid-area:icon;position:static;top:auto;right:auto;width:54px;height:54px;border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:26px;opacity:1;flex-shrink:0}
+.kpi.green .kpi-icon{background:var(--green-bg);color:var(--green)}
+.kpi.red .kpi-icon{background:var(--red-bg);color:var(--red)}
+.kpi.blue .kpi-icon{background:var(--blue-bg);color:var(--blue)}
+.kpi.amber .kpi-icon{background:var(--amber-bg);color:var(--amber)}
+.kpi.purple .kpi-icon{background:var(--purple-bg);color:var(--purple)}
+/* "-274 / -610" 두 숫자 카드 폰트 작게 */
+#kpi11-gap-val{font-size:24px;letter-spacing:-1px}
+
+/* TOGGLE */
+.toggle-row{display:flex;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap}
+.toggle-label{font-size:11px;font-family:var(--mono);color:var(--text3);font-weight:600;flex-shrink:0}
+.tgl-group{display:flex;gap:3px}
+.tgl{padding:5px 12px;border-radius:16px;border:1px solid var(--border2);font-size:11px;font-weight:500;cursor:pointer;color:var(--text2);background:transparent;transition:all .12s;font-family:var(--sans)}
+.tgl:hover{color:var(--text);background:var(--bg3)}
+.tgl.active{background:var(--green-bg);color:var(--green);border-color:rgba(5,150,105,.3)}
+.tgl.red.active{background:var(--red-bg);color:var(--red);border-color:rgba(220,38,38,.3)}
+.tgl.blue.active{background:var(--blue-bg);color:var(--blue);border-color:rgba(37,99,235,.3)}
+.tgl.amber.active{background:var(--amber-bg);color:var(--amber);border-color:rgba(217,119,6,.3)}
+.tgl.purple.active{background:var(--purple-bg);color:var(--purple);border-color:rgba(124,58,237,.3)}
+
+/* GRIDS */
+.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px}
+.grid-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:12px}
+.grid-map{display:grid;grid-template-columns:1fr 340px;gap:12px;margin-bottom:12px}
+.mb12{margin-bottom:12px}
+.mb0{margin-bottom:0}
+
+/* CHART HEIGHTS */
+.chart-wrap{position:relative}
+.h120{height:120px}.h160{height:160px}.h180{height:180px}.h200{height:200px}
+.h240{height:240px}.h260{height:260px}.h280{height:280px}.h320{height:320px}.h360{height:360px}
+
+/* LEAFLET */
+.lmap{width:100%;border-radius:6px;background:#eaeef3;z-index:1}
+.lmap.h300{height:300px}.lmap.h340{height:340px}.lmap.h360{height:360px}
+.leaflet-container{background:#eaeef3 !important;font-family:var(--sans) !important;outline:none !important}
+.leaflet-control-attribution{background:rgba(255,255,255,.8) !important;color:var(--text3) !important;font-size:9px !important}
+.leaflet-control-zoom a{background:var(--bg2) !important;color:var(--text) !important;border-color:var(--border2) !important;width:24px !important;height:24px !important;line-height:24px !important;font-size:14px !important;border-radius:4px !important}
+.gu-tooltip{background:#1a2332 !important;border:none !important;color:#f5f7fa !important;font-family:var(--sans) !important;font-size:11px !important;padding:7px 10px !important;border-radius:6px !important;box-shadow:0 4px 12px rgba(0,0,0,.2) !important;line-height:1.5 !important}
+.gu-tooltip strong{color:#34d399;font-size:12px}
+.gu-label{background:transparent;border:none;font-family:var(--sans);font-weight:700;color:#1a2332;text-shadow:0 0 4px rgba(255,255,255,1),0 0 4px rgba(255,255,255,1),0 0 3px rgba(255,255,255,.9);font-size:9.5px;text-align:center;pointer-events:none;line-height:1.2;white-space:nowrap}
+.map-loading{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:11px;color:var(--text3);font-family:var(--mono);background:var(--bg2);border-radius:6px;z-index:5;pointer-events:none}
+.map-loading.hide{display:none}
+
+/* TIMELINE */
+.tl-wrap{padding:0;position:relative}
+.tl-header{display:grid;grid-template-columns:150px 1fr 90px;gap:8px;padding-bottom:6px;border-bottom:1px solid var(--border);font-size:9px;font-family:var(--mono);color:var(--text3);font-weight:600}
+.tl-months{display:flex;justify-content:space-between;padding:0 2px}
+.tl-rows-wrap{position:relative}
+.tl-today-line{position:absolute;top:0;bottom:0;width:2px;background:#70636a;z-index:10;pointer-events:none;border-radius:1px}
+.tl-today-badge{position:absolute;bottom:-28px;transform:translateX(-50%);background:#70636a;color:#fff;font-size:10px;font-family:var(--mono);font-weight:700;padding:3px 10px;border-radius:20px;white-space:nowrap;z-index:11;box-shadow:0 2px 6px rgba(0,0,0,.2)}
+.tl-row{display:grid;grid-template-columns:150px 1fr 90px;gap:8px;align-items:center;padding:10px 0;border-bottom:1px solid var(--border)}
+.tl-row:last-child{border-bottom:none}
+.tl-name{font-size:12px;font-weight:600}
+.tl-cap{font-size:10px;color:var(--text3);font-family:var(--mono)}
+.tl-bar-wrap{position:relative;height:24px;background:var(--bg3);border-radius:4px;overflow:hidden}
+.tl-bar{position:absolute;height:100%;border-radius:3px;display:flex;align-items:center;justify-content:center;font-size:9px;font-family:var(--mono);color:#fff;font-weight:700;white-space:nowrap}
+.tl-dates{font-size:12px;font-family:var(--mono);color:#a78bfa;text-align:right;font-weight:600;line-height:1.4}
+.tl-legend{display:flex;gap:12px;margin-top:36px;flex-wrap:wrap}
+.tl-legend-item{display:flex;align-items:center;gap:5px;font-size:10px;color:var(--text2)}
+.tl-legend-dot{width:12px;height:8px;border-radius:2px}
+
+/* CAPACITY CHART side stats */
+.cap-stats{display:flex;flex-direction:column;gap:10px}
+.cap-stat{background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:24px 16px;flex:1;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;box-shadow:var(--shadow)}
+.cap-stat-icon{font-size:26px;margin-bottom:10px;line-height:1}
+.cap-stat-label{font-size:11px;font-family:var(--mono);color:var(--text3);margin-bottom:10px;display:flex;align-items:center;justify-content:center;gap:5px;font-weight:600;text-align:center;line-height:1.4;white-space:nowrap}
+.cap-stat-val{font-size:32px;font-weight:700;font-family:var(--mono);letter-spacing:-1.5px;line-height:1.1;text-align:center;white-space:nowrap}
+.cap-stat-sub{font-size:12px;color:var(--text2);font-family:var(--mono);margin-top:10px;text-align:center;white-space:nowrap}
+
+/* TOP5 */
+.top5-wrap{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.rank-list{background:var(--bg3);border-radius:8px;padding:10px 12px}
+.rank-title{font-size:10px;font-family:var(--mono);color:var(--text3);font-weight:600;margin-bottom:8px;text-transform:uppercase;letter-spacing:.04em}
+.rank-item{display:flex;align-items:center;gap:7px;padding:4px 0;border-bottom:1px solid var(--border)}
+.rank-item:last-child{border-bottom:none}
+.rank-num{font-family:var(--mono);font-size:10px;color:var(--text3);width:14px;flex-shrink:0;text-align:center}
+.rank-name{flex:1;font-size:12px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rank-val{font-family:var(--mono);font-size:11px;color:var(--green);font-weight:600;white-space:nowrap}
+
+/* STACKED BAR CHART SCROLL WRAP */
+.chart-scroll{overflow-x:auto;padding-bottom:4px}
+.chart-scroll::-webkit-scrollbar{height:4px}
+.chart-scroll::-webkit-scrollbar-track{background:var(--bg3)}
+.chart-scroll::-webkit-scrollbar-thumb{background:#b8c2d0;border-radius:2px}
+
+/* ════════════════════════════════════════════
+   NEW: LAYOUT SHRINK SIDE PANEL  [변경 3]
+   ════════════════════════════════════════════ */
+/* 1.2 + 1.3 wrapper: flex container for shrink layout */
+#content-12-13-wrapper {
+  display: flex;
+  gap: 0;
+  transition: gap 0.35s ease;
+  position: relative;
+}
+#content-12-13-main {
+  flex: 1;
+  min-width: 0;
+  transition: all 0.35s ease;
+}
+
+/* Dock panel (replaces overlay panel for 1.2/1.3 area) */
+#dock-panel {
+  width: 0;
+  overflow: hidden;
+  flex-shrink: 0;
+  transition: width 0.35s ease;
+  position: relative;
+}
+#dock-panel.open {
+  width: var(--panel-width);
+}
+#dock-panel-inner {
+  width: var(--panel-width);
+  height: 100%;
+  overflow-y: auto;
+  background: var(--bg2);
+  border: 1px solid var(--border2);
+  border-radius: 12px;
+  box-shadow: -2px 0 20px rgba(0,0,0,.08);
+  padding: 0;
+}
+/* When panel is open, add gap */
+#content-12-13-wrapper.panel-open {
+  gap: 16px;
+}
+
+/* Keep old overlay panel for any legacy usage - hidden */
+.panel-overlay{display:none !important}
+.slide-panel{display:none !important}
+
+/* TOOLTIP */
+.tooltip-popup{position:fixed;background:#1a2332;color:#f5f7fa;border-radius:7px;padding:8px 12px;font-size:10px;font-family:var(--mono);pointer-events:none;z-index:999;display:none;max-width:220px;line-height:1.7;box-shadow:0 4px 16px rgba(0,0,0,.2)}
+.tooltip-popup.show{display:block}
+
+/* YEAR SLIDER */
+.year-slider-wrap{display:flex;align-items:center;gap:10px;padding:8px 14px;background:var(--bg3);border-radius:8px;border:1px solid var(--border)}
+.year-slider-label{font-size:11px;font-family:var(--mono);color:var(--text3);font-weight:600;white-space:nowrap}
+.year-nav{display:flex;align-items:center;gap:6px}
+.year-btn{width:24px;height:24px;border-radius:4px;border:1px solid var(--border2);background:var(--bg2);cursor:pointer;color:var(--text2);font-size:12px;display:flex;align-items:center;justify-content:center;transition:all .12s}
+.year-btn:hover{background:var(--bg4);color:var(--text)}
+.year-btn:disabled{opacity:.3;cursor:not-allowed}
+.year-display{font-size:16px;font-weight:700;font-family:var(--mono);color:var(--green);min-width:50px;text-align:center}
+input[type=range].year-range{flex:1;-webkit-appearance:none;height:3px;background:var(--bg4);border-radius:2px;outline:none;cursor:pointer}
+input[type=range].year-range::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;border-radius:50%;background:var(--green);cursor:pointer;box-shadow:0 1px 4px rgba(0,0,0,.2)}
+
+/* SELECT */
+select{background:#fff;border:1.5px solid rgba(167,139,250,.35);border-radius:14px;color:var(--text);font-family:var(--sans);font-size:14px;font-weight:600;padding:11px 16px;outline:none;width:100%;cursor:pointer;box-shadow:0 2px 6px rgba(167,139,250,.08);transition:all .15s;appearance:none;background-image:url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='none' stroke='%23a78bfa' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' d='M1 1l5 5 5-5'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 14px center;padding-right:38px}
+select:hover{border-color:rgba(167,139,250,.6);box-shadow:0 4px 12px rgba(167,139,250,.18)}
+select:focus{border-color:#a78bfa;box-shadow:0 0 0 3px rgba(167,139,250,.18)}
+select option{background:#fff;color:var(--text);font-family:var(--sans);padding:10px 14px;font-weight:500}
+select option:checked{background:linear-gradient(rgba(167,139,250,.18),rgba(167,139,250,.18));color:#5b44ff;font-weight:700}
+
+/* CUSTOM DROPDOWN (replaces native <select>) */
+.cs-wrap{position:relative;width:100%;font-family:var(--sans)}
+.cs-trigger{width:100%;background:#fff;border:1.5px solid rgba(167,139,250,.35);border-radius:14px;color:var(--text);font-size:14px;font-weight:600;padding:11px 16px;outline:none;cursor:pointer;box-shadow:0 2px 6px rgba(167,139,250,.08);transition:all .15s;display:flex;align-items:center;justify-content:space-between;gap:10px;text-align:left;font-family:inherit}
+.cs-trigger:hover{border-color:rgba(167,139,250,.6);box-shadow:0 4px 12px rgba(167,139,250,.18)}
+.cs-trigger.open{border-color:#a78bfa;box-shadow:0 0 0 3px rgba(167,139,250,.18)}
+.cs-text{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cs-arrow{flex-shrink:0;transition:transform .2s}
+.cs-trigger.open .cs-arrow{transform:rotate(180deg)}
+.cs-panel{position:absolute;top:calc(100% + 6px);left:0;right:0;background:#fff;border:1.5px solid rgba(167,139,250,.35);border-radius:14px;box-shadow:0 8px 24px rgba(167,139,250,.18);padding:6px;max-height:280px;overflow-y:auto;z-index:1000;display:none}
+.cs-panel.open{display:block}
+.cs-panel::-webkit-scrollbar{width:6px}
+.cs-panel::-webkit-scrollbar-thumb{background:rgba(167,139,250,.4);border-radius:3px}
+.cs-option{padding:9px 14px;font-size:14px;color:var(--text);border-radius:10px;cursor:pointer;transition:background .12s;font-weight:500}
+.cs-option:hover{background:rgba(167,139,250,.10)}
+.cs-option.active{background:rgba(167,139,250,.18);color:#5b44ff;font-weight:700}
+.cs-wrap.compact{display:inline-block;width:auto;min-width:120px}
+.cs-wrap.compact .cs-trigger{font-size:12px;padding:6px 12px;border-radius:10px}
+.cs-wrap.compact .cs-option{font-size:12px;padding:7px 12px}
+select:focus{border-color:var(--green)}
+
+/* INFO ICON TOOLTIP */
+.info-icon{display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px;border-radius:50%;background:var(--bg4);border:1px solid var(--border2);font-size:9px;color:var(--text3);cursor:help;font-family:var(--mono);font-weight:700;flex-shrink:0;transition:all .12s}
+.info-icon:hover{background:var(--green-bg);color:var(--green);border-color:rgba(5,150,105,.3)}
+
+::-webkit-scrollbar{width:5px;height:5px}
+::-webkit-scrollbar-track{background:var(--bg4)}
+::-webkit-scrollbar-thumb{background:#b8c2d0;border-radius:3px}
+
+/* UTILITY */
+.flex-between{display:flex;align-items:center;justify-content:space-between}
+.flex-gap8{display:flex;align-items:center;gap:8px}
+.map-legend{position:absolute;bottom:10px;left:10px;background:rgba(255,255,255,.92);border:1px solid var(--border2);border-radius:6px;padding:8px 10px;font-size:9px;font-family:var(--mono);color:var(--text2);z-index:401;pointer-events:none}
+.map-legend-row{display:flex;align-items:center;gap:6px;margin:2px 0}
+.map-legend-dot{width:10px;height:10px;border-radius:2px}
+.grad-bar-wrap{display:flex;align-items:center;gap:6px;margin-top:6px}
+.grad-bar{flex:1;height:5px;border-radius:3px}
+
+/* SECTION 2.1 STYLE MAP PANEL — applied to 1.2 map */
+.s21-style-map-panel{
+  position:relative !important;
+  border-radius:18px !important;
+  background:linear-gradient(135deg,#ffffff 0%,#f7fbff 60%,#f5f7ff 100%) !important;
+  border:1px solid rgba(226,232,240,.95) !important;
+  box-shadow:0 12px 32px rgba(37,99,235,.06) !important;
+  overflow:hidden;
+}
+.s21-style-map-panel .lmap{background:transparent !important}
+.s21-style-map-panel .leaflet-container{background:transparent !important}
+
+/* 1.3 specific */
+.chart-scroll-y{overflow-y:auto;max-height:360px}
+.chart-scroll-y::-webkit-scrollbar{width:4px}
+.drop-sort{background:var(--bg3);border:1px solid var(--border2);border-radius:6px;color:var(--text);font-family:var(--sans);font-size:11px;padding:4px 8px;outline:none;cursor:pointer}
+
+/* Note text */
+.note-text{font-size:10px;color:var(--text3);font-family:var(--mono);margin-top:6px;line-height:1.6}
+
+/* DIVERGING BAR */
+.div-bar-wrap{overflow-y:auto;max-height:420px}
+
+/* 1.3 diverging chart — 2.3 style: pill gradient + bold large fonts */
+.diag-row{position:relative;height:22px;margin:1px 0;display:grid;grid-template-columns:60px 1fr 60px;gap:10px;align-items:center;cursor:pointer;border-radius:8px;transition:all .12s;padding:0 8px}
+.diag-row:hover{background:rgba(255,255,255,.72)}
+.diag-name{font-size:13px;font-weight:800;color:#334155;text-align:right;white-space:nowrap}
+.diag-row.good .diag-name{color:#1d5fae}
+.diag-row.over .diag-name{color:#c52434}
+.diag-bar-area{position:relative;height:16px}
+.diag-zero{position:absolute;top:-4px;bottom:-4px;width:1px;background:#64748b;left:50%}
+.diag-fill{position:absolute;top:50%;height:11px;border-radius:999px;transform:translateY(-50%);box-shadow:0 3px 8px rgba(15,23,42,.10)}
+.diag-fill.good{background:linear-gradient(90deg,#60a5fa,#818cf8)}
+.diag-fill.normal{background:linear-gradient(90deg,#d1d5db,#9ca3af)}
+.diag-fill.over{background:linear-gradient(90deg,#fb7185,#f87171)}
+.diag-val{font-family:var(--mono);font-size:13px;font-weight:800;text-align:right}
+.diag-val.good{color:#1d5fae}
+.diag-val.normal{color:#4b5563}
+.diag-val.over{color:#c52434}
+
+/* ════════════════════════════════════════════
+   NEW SIDE PANEL DESIGN  [변경 1, 2, 4]
+   ════════════════════════════════════════════ */
+.sp2-wrap {
+  padding: 24px 22px 32px;
+}
+/* Header */
+.sp2-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 4px;
+}
+.sp2-title {
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -.5px;
+  color: var(--text);
+}
+.sp2-close {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: var(--bg3);
+  border: 1px solid var(--border2);
+  color: var(--text2);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  flex-shrink: 0;
+  transition: all .15s;
+}
+.sp2-close:hover { background: var(--bg4); color: var(--text); }
+.sp2-year {
+  font-size: 11px;
+  color: var(--text3);
+  font-family: var(--mono);
+  margin-bottom: 14px;
+}
+.sp2-insight {
+  background: var(--green-bg);
+  border: 1px solid rgba(5,150,105,.18);
+  border-radius: 10px;
+  padding: 12px 14px;
+  font-size: 12px;
+  color: var(--green2);
+  line-height: 1.65;
+  margin-bottom: 18px;
+  display: flex;
+  gap: 9px;
+  align-items: flex-start;
+}
+.sp2-insight-icon { font-size: 15px; flex-shrink: 0; margin-top: 1px; }
+
+/* Section cards */
+.sp2-section {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 18px 18px 14px;
+  margin-bottom: 14px;
+}
+.sp2-section-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 14px;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  letter-spacing: -.1px;
+}
+.sp2-section-title span.badge {
+  font-size: 10px;
+  padding: 2px 7px;
+  border-radius: 4px;
+  font-weight: 600;
+  font-family: var(--mono);
+}
+
+/* [변경 1] KPI 4-column grid */
+.sp2-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  margin-bottom: 14px;
+}
+.sp2-kpi {
+  background: var(--bg3);
+  border-radius: 9px;
+  padding: 11px 10px 10px;
+  text-align: center;
+  border: 1px solid var(--border);
+}
+.sp2-kpi-label {
+  font-size: 9.5px;
+  color: var(--text3);
+  font-family: var(--mono);
+  margin-bottom: 6px;
+  line-height: 1.3;
+  min-height: 26px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.sp2-kpi-val {
+  font-size: 20px;
+  font-weight: 700;
+  font-family: var(--mono);
+  letter-spacing: -1px;
+  line-height: 1;
+}
+.sp2-kpi-unit {
+  font-size: 10px;
+  font-weight: 400;
+  color: var(--text2);
+  display: block;
+  margin-top: 2px;
+}
+.sp2-kpi-tag {
+  display: inline-block;
+  margin-top: 6px;
+  font-size: 9px;
+  padding: 2px 7px;
+  border-radius: 10px;
+  font-weight: 600;
+  font-family: var(--mono);
+}
+.sp2-kpi-tag.above { background: var(--green-bg); color: var(--green); }
+.sp2-kpi-tag.below { background: var(--red-bg); color: var(--red); }
+.sp2-kpi-tag.neutral { background: var(--bg4); color: var(--text2); }
+
+/* [변경 1] Donut chart section */
+.sp2-donut-wrap {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  margin-top: 6px;
+}
+.sp2-donut-canvas-wrap {
+  position: relative;
+  width: 130px;
+  height: 130px;
+  flex-shrink: 0;
+}
+.sp2-donut-center {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  text-align: center;
+}
+.sp2-donut-center-label {
+  font-size: 11px;
+  color: var(--text2);
+  font-weight: 500;
+  line-height: 1.2;
+}
+.sp2-donut-center-pct {
+  font-size: 24px;
+  font-weight: 700;
+  font-family: var(--mono);
+  letter-spacing: -1px;
+  line-height: 1;
+  margin: 2px 0;
+}
+.sp2-donut-center-sub {
+  font-size: 10px;
+  color: var(--text3);
+  font-family: var(--mono);
+}
+/* Donut legend */
+.sp2-donut-legend {
+  flex: 1;
+}
+.sp2-donut-legend-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 12px;
+}
+.sp2-donut-legend-row:last-child { border-bottom: none; }
+.sp2-donut-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+.sp2-legend-name {
+  flex: 1;
+  color: var(--text2);
+  font-size: 12px;
+  /* [변경 1] each legend has its own tooltip via data-tip */
+  cursor: help;
+}
+.sp2-legend-pct {
+  font-family: var(--mono);
+  font-weight: 600;
+  color: var(--text);
+  font-size: 12px;
+  min-width: 36px;
+  text-align: right;
+}
+.sp2-legend-ton {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--text3);
+  min-width: 60px;
+  text-align: right;
+}
+
+/* [변경 2] Processing KPI 4-column */
+.sp2-proc-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+/* [변경 2] 처리 구조 요약: 3줄 horizontal bar */
+.sp2-proc-bars {
+  margin-top: 12px;
+}
+.sp2-proc-bar-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+.sp2-proc-bar-row:last-child { margin-bottom: 0; }
+.sp2-proc-bar-label {
+  width: 44px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.sp2-proc-bar-label .dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+.sp2-proc-bar-track {
+  flex: 1;
+  height: 22px;
+  background: var(--bg3);
+  border-radius: 5px;
+  overflow: hidden;
+  position: relative;
+}
+.sp2-proc-bar-fill {
+  height: 100%;
+  border-radius: 5px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: width 0.4s ease;
+  min-width: 2px;
+}
+.sp2-proc-bar-fill span {
+  font-size: 10px;
+  font-weight: 700;
+  font-family: var(--mono);
+  color: #fff;
+  white-space: nowrap;
+}
+.sp2-proc-bar-meta {
+  font-size: 11px;
+  font-family: var(--mono);
+  color: var(--text2);
+  min-width: 100px;
+  text-align: left;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+/* Section title badge */
+.sp2-section-max-badge {
+  margin-left: auto;
+  font-size: 10px;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-weight: 600;
+  font-family: var(--mono);
+}
+</style>
+</head>
+<body>
+
+<div class="tooltip-popup" id="ttp"></div>
+
+<!-- Legacy overlay (hidden) -->
+<div class="panel-overlay" id="panel-overlay"></div>
+<div class="slide-panel" id="slide-panel"><div id="slide-panel-inner"></div></div>
+
+
+<div class="tabs">
+  <div class="tab active" onclick="switchTab(0)">
+    <span class="tab-num">CH.1</span>
+    <span class="tab-label">🔍 진단</span>
+    <span class="tab-desc">What — 지금 무슨 일이?</span>
+  </div>
+  <div class="tab" onclick="switchTab(1)">
+    <span class="tab-num">CH.2</span>
+    <span class="tab-label">🧬 분석</span>
+    <span class="tab-desc">Why — 왜 구마다 다른가?</span>
+  </div>
+  <div class="tab" onclick="switchTab(2)">
+    <span class="tab-num">CH.3</span>
+    <span class="tab-label">💊 처방</span>
+    <span class="tab-desc">How — 매칭 시뮬레이터</span>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════ CH.1 ═══════════════════════════════ -->
+<div class="page active" id="pg0">
+
+  <!-- ── 1.1 자원회수시설 정비 일정과 처리 여력 ── -->
+  <div class="section-header">
+    <span class="section-badge">1.1</span>
+    <span class="section-title">자원회수시설 정비 일정과 처리 여력</span>
+    <span class="section-meta">단위: 톤/일</span>
+  </div>
+
+  <!-- KPI 4개 -->
+  <div style="position:relative">
+  <span style="position:absolute;top:0;right:0;font-size:10px;font-family:var(--mono);color:var(--text3);background:var(--bg3);border:1px solid var(--border2);border-radius:4px;padding:2px 7px;z-index:1">총폐기물 기준</span>
+  <div class="kpi-row k4 mb12">
+    <div class="kpi green">
+      <span class="kpi-icon">🗑</span>
+      <div class="kpi-label">현재 발생량</div>
+      <div class="kpi-val" id="kpi11-daily"><span id="kpi11-daily-val" class="green" style="color:var(--green)">—</span><span class="kpi-unit">톤/일</span></div>
+      <div class="kpi-sub" id="kpi11-daily-sub">—</div>
+    </div>
+    <div class="kpi red">
+      <span class="kpi-icon">🔥</span>
+      <div class="kpi-label">현재 소각 처리 대상량</div>
+      <div class="kpi-val" id="kpi11-demand"><span id="kpi11-demand-val" style="color:var(--red)">—</span><span class="kpi-unit">톤/일</span></div>
+      <div class="kpi-sub" id="kpi11-demand-sub">—</div>
+    </div>
+    <div class="kpi blue">
+      <span class="kpi-icon">🏭</span>
+      <div class="kpi-label">현재 소각 처리 가능량</div>
+      <div class="kpi-val"><span id="kpi11-supply-val" style="color:var(--blue)">—</span><span class="kpi-unit">톤/일</span></div>
+      <div class="kpi-sub">4개 시설 정상 가동 시</div>
+    </div>
+    <div class="kpi amber">
+      <span class="kpi-icon">⚖</span>
+      <div class="kpi-label">평상시 부족분 / 정비시 부족분</div>
+      <div class="kpi-val"><span id="kpi11-gap-val" style="color:var(--amber)">—</span><span class="kpi-unit">톤/일</span></div>
+      <div class="kpi-sub" id="kpi11-gap-sub">—</div>
+    </div>
+  </div>
+  </div><!-- /총폐기물 기준 wrapper -->
+
+  <!-- 정비 타임라인 + 월별 + 사이드 스탯 -->
+  <div style="display:grid;grid-template-columns:0.95fr 1.4fr 200px;gap:14px;margin-bottom:12px;align-items:stretch">
+    <!-- 타임라인 -->
+    <div class="panel" style="display:flex;flex-direction:column">
+      <div class="panel-title">서울시 공공 소각시설 4개소 정비 타임라인</div>
+      <div id="facility-timeline" style="flex:1"></div>
+      <div style="display:flex;justify-content:space-between;align-items:flex-end;gap:14px;flex-wrap:wrap;margin-top:14px">
+        <div class="tl-legend" id="tl-legend" style="margin-top:0">
+          <div class="tl-legend-item"><div class="tl-legend-dot" style="background:#70636a"></div>오늘</div>
+          <div class="tl-legend-item"><div class="tl-legend-dot" style="background:var(--bg4)"></div>정비 기간 외</div>
+          <div class="tl-legend-item"><div class="tl-legend-dot" style="background:#a78bfa"></div>정비 기간</div>
+        </div>
+        <div style="font-size:11px;color:var(--text3);font-family:var(--mono);text-align:right;line-height:1.7">
+          <div>2026 실제 정비 일정 (출처: rrf.seoul.go.kr)</div>
+          <div id="header-date-display">기준일: —</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 월별 소각 처리 여력 -->
+    <div class="panel" style="display:flex;flex-direction:column">
+      <div class="panel-title flex-between">
+        <span>월별 소각 처리 여력 현황</span>
+        <span class="panel-badge">단위: 톤/일</span>
+      </div>
+      <div class="chart-wrap" style="flex:1;min-height:280px"><canvas id="capacity-chart"></canvas></div>
+      <p class="note-text" id="capacity-note">※ 처리 대상량은 연간 소각 처리 총량을 365로 나눈 일평균 기준입니다.</p>
+    </div>
+
+    <!-- 사이드 스탯 -->
+    <div class="cap-stats">
+      <div class="cap-stat">
+        <div class="cap-stat-icon" style="color:var(--purple)">📅</div>
+        <div class="cap-stat-label" style="color:var(--purple)">최대 부족 월</div>
+        <div class="cap-stat-val" id="stat-max-month" style="color:var(--purple)">—월</div>
+        <div class="cap-stat-sub" id="stat-max-shortage">— 톤/일</div>
+      </div>
+      <div class="cap-stat">
+        <div class="cap-stat-icon" style="color:var(--amber)">⚠</div>
+        <div class="cap-stat-label" style="color:var(--amber)">정비 시 최대 부족량</div>
+        <div class="cap-stat-val" id="stat-maint-max" style="color:var(--amber)">— 톤/일</div>
+        <div class="cap-stat-sub">정비 기간 기준</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── 1.2 자치구별 폐기물 발생 현황 ── -->
+  <div class="section-header">
+    <span class="section-badge">1.2</span>
+    <span class="section-title">자치구별 폐기물 발생 현황</span>
+  </div>
+
+  <!-- 1.2 KPI 3개 -->
+  <div style="position:relative">
+  <span style="position:absolute;top:0;right:0;font-size:10px;font-family:var(--mono);color:var(--text3);background:var(--bg3);border:1px solid var(--border2);border-radius:4px;padding:2px 7px;z-index:1">생활계 폐기물 기준</span>
+  <div class="kpi-row k3 mb12">
+    <div class="kpi green">
+      <span class="kpi-icon">🗑</span>
+      <div class="kpi-label">생활계 연간 발생량</div>
+      <div class="kpi-val"><span id="kpi12-total" style="color:var(--green)">—</span><span class="kpi-unit">톤/년</span></div>
+      <div class="kpi-sub" id="kpi12-total-sub">—</div>
+    </div>
+    <div class="kpi amber">
+      <span class="kpi-icon">👤</span>
+      <div class="kpi-label">
+        1인당 생활계 발생량
+        <span class="info-icon" data-tip="1인당 생활계폐기물 발생량: 인구 기준 1인당 하루 폐기물 발생량 (kg/인·일)">ⓘ</span>
+      </div>
+      <div class="kpi-val"><span id="kpi12-percap" style="color:var(--amber)">—</span><span class="kpi-unit">kg/인·일</span></div>
+      <div class="kpi-sub" id="kpi12-percap-sub">—</div>
+    </div>
+    <div class="kpi red">
+      <span class="kpi-icon">⚖</span>
+      <div class="kpi-label">1인당 발생량 격차</div>
+      <div class="kpi-val"><span id="kpi12-gap" style="color:var(--red)">—</span><span class="kpi-unit">배</span></div>
+      <div class="kpi-sub" id="kpi12-gap-sub">—</div>
+    </div>
+  </div>
+  </div><!-- /생활계 폐기물 기준 wrapper -->
+
+  <!-- 연도 슬라이더 -->
+  <div class="year-slider-wrap mb12">
+    <span class="year-slider-label">연도 선택</span>
+    <button class="year-btn" id="year-prev" onclick="changeYear(-1)">‹</button>
+    <span class="year-display" id="year-display">2024</span>
+    <button class="year-btn" id="year-next" onclick="changeYear(1)">›</button>
+    <input type="range" class="year-range" id="year-range" min="0" max="4" value="4" oninput="onYearRange(this.value)">
+    <span style="font-size:10px;color:var(--text3);font-family:var(--mono)">※ 선택한 연도·지표에 따라 지도와 TOP5가 변경됩니다.</span>
+  </div>
+
+  <!-- 유형·지표 토글 -->
+  <div class="toggle-row mb12">
+    <span class="toggle-label">유형</span>
+    <div class="tgl-group" id="type-toggle">
+      <button class="tgl active" onclick="setType('전체',this)">전체</button>
+      <button class="tgl" onclick="setType('생활계',this)">생활계</button>
+      <button class="tgl" onclick="setType('가정',this)">가정</button>
+    </div>
+    <span class="toggle-label" style="margin-left:12px">지표</span>
+    <div class="tgl-group" id="metric-toggle">
+      <button class="tgl active" onclick="setMetric('total',this)">총량</button>
+      <button class="tgl" onclick="setMetric('percap',this)">1인당</button>
+    </div>
+  </div>
+
+  <!-- [변경 3] 1.2 + 1.3 shrink-layout wrapper -->
+  <div id="content-12-13-wrapper">
+    <div id="content-12-13-main">
+
+      <!-- [변경 3] 새 레이아웃: 상단 (지도 + TOP5×2), 하단 (구성 차트 전체 폭) -->
+
+      <!-- 상단: 지도 + TOP5 나란히 (3-column) -->
+      <div style="display:grid;grid-template-columns:1.45fr 0.55fr 0.55fr;gap:14px;margin-bottom:14px;align-items:stretch">
+
+        <!-- 지도 패널 -->
+        <div class="panel s21-style-map-panel" style="position:relative;padding:18px 18px 14px">
+          <div class="panel-title flex-between" style="margin-bottom:12px">
+            <span id="map12-title" style="font-size:14px;font-weight:700;color:var(--text);font-family:var(--sans);text-transform:none;letter-spacing:0">자치구별 발생량 지도 (총량)
+              <span class="info-icon" data-tip="자치구별 폐기물 발생량을 색상으로 표현한 코로플레스 지도. 클릭 시 상세 패널이 열립니다.">ⓘ</span>
+            </span>
+          </div>
+          <div style="position:relative">
+            <div id="map12" class="lmap" style="height:380px;border-radius:8px"></div>
+            <div class="map-loading" id="map12-loading">지도 로드 중...</div>
+          </div>
+          <div class="grad-bar-wrap" style="margin-top:10px">
+            <span style="font-size:10px;font-family:var(--mono);color:var(--text3)">(단위: 톤/년)</span>
+            <span style="font-size:10px;font-family:var(--mono);color:var(--text3);margin-left:8px">낮음</span>
+            <div class="grad-bar" id="map12-gradient" style="background:linear-gradient(to right,#d1fae5,#34d399);flex:1;max-width:120px"></div>
+            <span style="font-size:10px;font-family:var(--mono);color:var(--text3)">높음</span>
+          </div>
+        </div>
+
+        <!-- 총량 TOP5 -->
+        <div class="panel" style="padding:20px 18px;display:flex;flex-direction:column">
+          <div style="display:flex;align-items:center;gap:7px;margin-bottom:14px">
+            <span style="font-size:14px">🚛</span>
+            <span id="top5-left-title" style="font-size:13px;font-weight:700;color:var(--text)">총량 TOP 5 &nbsp;<span style="font-size:11px;font-weight:400;color:var(--text3)">(전체)</span></span>
+          </div>
+          <div id="top5-left" style="flex:1"></div>
+        </div>
+
+        <!-- 1인당 TOP5 -->
+        <div class="panel" style="padding:20px 18px;display:flex;flex-direction:column">
+          <div style="display:flex;align-items:center;gap:7px;margin-bottom:14px">
+            <span style="font-size:14px">🧍</span>
+            <span id="top5-right-title" style="font-size:13px;font-weight:700;color:var(--text)">1인당 TOP 5 &nbsp;<span style="font-size:11px;font-weight:400;color:var(--text3)">(전체)</span></span>
+          </div>
+          <div id="top5-right" style="flex:1"></div>
+          <div style="text-align:right;font-size:10px;color:var(--text3);font-family:var(--mono);margin-top:10px">※ 선택한 유형·지표에 따라 TOP5가 변경됩니다.</div>
+        </div>
+      </div>
+
+      <!-- 하단: 자치구별 폐기물 유형 구성 (전체 폭) -->
+      <div class="panel mb12" style="padding:20px 22px 18px">
+        <div class="flex-between" style="margin-bottom:14px">
+          <div style="display:flex;align-items:center;gap:8px">
+            <span id="comp-section-title" style="font-size:15px;font-weight:700;color:var(--text)">자치구별 폐기물 구성 비율
+              <span id="comp-type-label" style="font-size:12px;font-weight:400;color:var(--text3);margin-left:4px">(전체)</span>
+            </span>
+            <span class="info-icon" data-tip="각 자치구의 폐기물 유형별 구성비. 범례를 클릭해 유형을 필터링할 수 있습니다.">ⓘ</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:10px">
+            <span style="font-size:10px;color:var(--text3);font-family:var(--mono)">(단위: %)</span>
+            <span style="font-size:10px;color:var(--text3)">정렬</span>
+            <select class="drop-sort" id="comp-sort" onchange="renderCompositionChart()" style="width:auto;font-size:10px;padding:3px 8px">
+              <option value="total">총량순</option>
+              <option value="percap">1인당순</option>
+              <option value="alpha">가나다순</option>
+            </select>
+          </div>
+        </div>
+        <!-- 클릭 가능한 범례 -->
+        <div id="comp-legend" style="display:flex;flex-wrap:wrap;gap:10px;margin-bottom:12px"></div>
+        <div class="chart-scroll">
+          <div style="min-width:900px"><div class="chart-wrap" style="height:260px"><canvas id="composition-chart"></canvas></div></div>
+        </div>
+        <p class="note-text" style="margin-top:10px;border-top:1px solid var(--border);padding-top:8px">※ 전체 폐기물 발생량 기준 구성비 (%) 표시 &nbsp;|&nbsp; 막대를 클릭하면 해당 자치구의 상세 정보를 확인할 수 있습니다.</p>
+      </div>
+
+    </div><!-- /#content-12-13-main (1.2 끝) -->
+
+    <!-- [변경 3] Dock panel — 1.2 영역 옆에만 위치 -->
+    <div id="dock-panel">
+      <div id="dock-panel-inner">
+        <!-- filled by renderSidePanel() -->
+      </div>
+    </div>
+
+  </div><!-- /#content-12-13-wrapper -->
+
+  <!-- ── 1.3 자치구별 폐기물 처리 현황 ── (wrapper 밖으로 이동) -->
+  <div class="section-header">
+    <span class="section-badge">1.3</span>
+    <span class="section-title">자치구별 폐기물 처리 현황</span>
+  </div>
+  <div><!-- 1.3 컨텐츠 컨테이너 시작 -->
+
+      <!-- 1.3 KPI 4개 -->
+      <div style="position:relative">
+      <span style="position:absolute;top:0;right:0;font-size:10px;font-family:var(--mono);color:var(--text3);background:var(--bg3);border:1px solid var(--border2);border-radius:4px;padding:2px 7px;z-index:1">최신 연도 기준</span>
+      <div class="kpi-row k4 mb12" style="gap:14px">
+        <div class="kpi green" style="padding:22px 24px">
+          <span class="kpi-icon">♻</span>
+          <div class="kpi-label">재활용률</div>
+          <div class="kpi-val" style="font-size:32px"><span id="kpi13-recycle" style="color:var(--green)">—</span><span class="kpi-unit" style="font-size:14px">%</span></div>
+          <div class="kpi-sub" id="kpi13-recycle-sub">—</div>
+        </div>
+        <div class="kpi red" style="padding:22px 24px">
+          <span class="kpi-icon">🔥</span>
+          <div class="kpi-label">소각 비중</div>
+          <div class="kpi-val" style="font-size:32px"><span id="kpi13-inc" style="color:var(--red)">—</span><span class="kpi-unit" style="font-size:14px">%</span></div>
+          <div class="kpi-sub" id="kpi13-inc-sub">—</div>
+        </div>
+        <div class="kpi purple" style="padding:22px 24px">
+          <span class="kpi-icon">⛏</span>
+          <div class="kpi-label">매립 비중</div>
+          <div class="kpi-val" style="font-size:32px"><span id="kpi13-land" style="color:var(--purple)">—</span><span class="kpi-unit" style="font-size:14px">%</span></div>
+          <div class="kpi-sub" id="kpi13-land-sub">—</div>
+        </div>
+        <div class="kpi amber" style="padding:22px 24px">
+          <span class="kpi-icon">📈</span>
+          <div class="kpi-label">재활용률 증감</div>
+          <div class="kpi-val" style="font-size:32px"><span id="kpi13-change" style="color:var(--amber)">—</span><span class="kpi-unit" style="font-size:14px">%p</span></div>
+          <div class="kpi-sub" id="kpi13-change-sub">전년 대비</div>
+        </div>
+      </div>
+      </div><!-- /최신 연도 기준 wrapper -->
+
+      <!-- 1.3 2열 레이아웃 -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:12px">
+        <!-- 좌측 -->
+        <div style="display:flex;flex-direction:column;gap:14px">
+          <!-- 연도별 폐기물 처리 구조 변화 (전체 연도) -->
+          <div class="panel" style="padding:18px 20px">
+            <div class="panel-title" style="margin-bottom:14px">연도별 폐기물 처리 구조 변화 (서울시)
+              <span class="panel-badge">전체 연도</span>
+            </div>
+            <div class="chart-wrap" style="height:220px"><canvas id="trend13"></canvas></div>
+            <p class="note-text" style="margin-top:6px">※ 일부 구간이 확대된 축입니다</p>
+          </div>
+
+          <!-- 자치구별 총폐기물 처리 구조 -->
+          <div class="panel" style="flex:1;padding:18px 20px">
+            <div class="panel-title flex-between" style="margin-bottom:14px">
+              <span>자치구별 총폐기물 처리 구조</span>
+              <div style="display:flex;align-items:center;gap:5px">
+                <span style="font-size:10px;color:var(--text3)">정렬 기준</span>
+                <select class="drop-sort" id="proc-sort" onchange="renderProcessingChart()" style="width:auto;font-size:10px;padding:3px 6px">
+                  <option value="recycle">재활용률 높은 순</option>
+                  <option value="incineration">소각 비중 높은 순</option>
+                  <option value="landfill">매립 비중 높은 순</option>
+                </select>
+              </div>
+            </div>
+            <!-- 범례 -->
+            <div style="display:flex;flex-wrap:wrap;gap:10px;margin-bottom:10px">
+              <div style="display:flex;align-items:center;gap:4px;font-size:10px;color:var(--text2)"><div style="width:10px;height:10px;border-radius:2px;background:#34d399"></div>재활용</div>
+              <div style="display:flex;align-items:center;gap:4px;font-size:10px;color:var(--text2)"><div style="width:10px;height:10px;border-radius:2px;background:#f87171"></div>소각</div>
+              <div style="display:flex;align-items:center;gap:4px;font-size:10px;color:var(--text2)"><div style="width:10px;height:10px;border-radius:2px;background:#a78bfa"></div>매립</div>
+              <div style="display:flex;align-items:center;gap:4px;font-size:10px;color:var(--text2)"><div style="width:10px;height:10px;border-radius:2px;background:#cbd5e1"></div>기타</div>
+            </div>
+            <!-- sticky x축 컨테이너 -->
+            <div style="position:relative;overflow:hidden">
+              <!-- 스크롤 바 영역 -->
+              <div id="processing-scroll-container" style="overflow-y:auto;max-height:400px;padding-right:4px;padding-bottom:32px">
+                <div id="processing-chart-wrap"><canvas id="processing-chart"></canvas></div>
+              </div>
+              <!-- sticky x축 -->
+              <div id="proc-sticky-xaxis" style="position:absolute;bottom:0;left:0;right:4px;height:32px;background:var(--bg2);border-top:1px solid var(--border);z-index:10">
+                <canvas id="proc-xaxis-canvas" style="width:100%;height:32px"></canvas>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 우측: 생활계 처리 방식 비교 -->
+        <div class="panel" style="display:flex;flex-direction:column;padding:18px 20px">
+          <div class="panel-title flex-between" style="margin-bottom:14px">
+            <span>생활계 처리 방식 비교
+              <span class="info-icon" data-tip="생활계폐기물은 가정 및 소규모 사업장에서 발생하는 폐기물입니다.">ⓘ</span>
+            </span>
+            <span class="panel-badge">기준: 서울 평균 대비</span>
+            <span class="panel-badge" style="margin-left:4px;color:var(--text3)">최신 연도 기준</span>
+          </div>
+          <!-- 지표 토글 -->
+          <div style="display:flex;align-items:center;gap:6px;margin-bottom:12px">
+            <span style="font-size:11px;font-family:var(--mono);color:var(--text3);font-weight:600">지표</span>
+            <div id="diverg-toggle" style="display:flex;gap:3px">
+              <button class="tgl active" id="dtgl-recycle" onclick="setDivergMetric('recycle',this)">재활용률</button>
+              <button class="tgl" id="dtgl-incineration" onclick="setDivergMetric('incineration',this)">소각률</button>
+              <button class="tgl" id="dtgl-landfill" onclick="setDivergMetric('landfill',this)">매립률</button>
+            </div>
+          </div>
+          <div class="div-bar-wrap" id="diverging-bar" style="flex:1;overflow-y:visible;max-height:none"></div>
+        </div>
+      </div>
+
+  </div><!-- /1.3 컨텐츠 컨테이너 끝 -->
+
+</div><!-- /#pg0 -->
+
+<!-- ═══════════════════════════════ CH.2 ═══════════════════════════════ -->
+<div class="page" id="pg1">
+  <div style="padding:60px;text-align:center;color:var(--text3);font-family:var(--mono)">CH.2 분석 (준비 중)</div>
+</div>
+
+<!-- ═══════════════════════════════ CH.3 ═══════════════════════════════ -->
+<div class="page" id="pg2">
+  <div style="padding:60px;text-align:center;color:var(--text3);font-family:var(--mono)">CH.3 처방 (준비 중)</div>
+</div>
+
+<!-- ══════════════════════════════ GeoJSON ══════════════════════════════ -->
+<script>
+const SEOUL_GEO_INLINE = {"type":"FeatureCollection","features":[{"type":"Feature","properties":{"name":"강동구"},"geometry":{"type":"Polygon","coordinates":[[[127.1152,37.5575],[127.1188,37.5572],[127.1215,37.5599],[127.1244,37.5614],[127.1359,37.5656],[127.1493,37.5689],[127.1551,37.5709],[127.1668,37.5767],[127.1704,37.5765],[127.1761,37.5768],[127.1791,37.5779],[127.1775,37.5745],[127.1782,37.5715],[127.18,37.5693],[127.1812,37.5664],[127.1817,37.5629],[127.1841,37.5581],[127.1835,37.5501],[127.1853,37.5489],[127.1848,37.5453],[127.1854,37.5426],[127.1836,37.5424],[127.1812,37.5438],[127.1777,37.5424],[127.1744,37.5428],[127.1683,37.5415],[127.1653,37.5422],[127.1557,37.5312],[127.1554,37.5265],[127.1515,37.5228],[127.1498,37.5193],[127.1479,37.5192],[127.1468,37.5166],[127.1467,37.5142],[127.1453,37.5146],[127.1212,37.5253],[127.1225,37.5275],[127.1253,37.5357],[127.1206,37.5381],[127.1117,37.5407],[127.1142,37.5447],[127.116,37.5505],[127.116,37.5558],[127.1152,37.5575]]]}},{"type":"Feature","properties":{"name":"송파구"},"geometry":{"type":"Polygon","coordinates":[[[127.0691,37.5223],[127.075,37.5209],[127.0797,37.5208],[127.0864,37.5216],[127.0944,37.524],[127.1009,37.5248],[127.1048,37.5312],[127.1117,37.5407],[127.1206,37.5381],[127.1253,37.5357],[127.1225,37.5275],[127.1212,37.5253],[127.1453,37.5146],[127.1467,37.5142],[127.1467,37.5128],[127.1446,37.5115],[127.1432,37.5095],[127.1421,37.5058],[127.1432,37.5026],[127.1474,37.5007],[127.1498,37.5005],[127.1522,37.5017],[127.154,37.5003],[127.1609,37.4989],[127.1635,37.4974],[127.162,37.494],[127.1622,37.4916],[127.1604,37.4878],[127.1589,37.4861],[127.1539,37.4848],[127.1515,37.4775],[127.1515,37.4756],[127.1486,37.4738],[127.1442,37.4737],[127.1411,37.4706],[127.1363,37.4721],[127.1328,37.4726],[127.1331,37.4689],[127.1375,37.4665],[127.1348,37.4651],[127.1308,37.4651],[127.1273,37.4667],[127.1273,37.4642],[127.1244,37.4624],[127.1244,37.4644],[127.1227,37.4676],[127.1138,37.4796],[127.1144,37.4807],[127.1112,37.4857],[127.1078,37.4886],[127.1043,37.4907],[127.0989,37.493],[127.0805,37.4978],[127.0765,37.4986],[127.0719,37.5022],[127.0693,37.5172],[127.0686,37.5181],[127.0691,37.5223]]]}},{"type":"Feature","properties":{"name":"강남구"},"geometry":{"type":"Polygon","coordinates":[[[127.0587,37.5263],[127.0691,37.5223],[127.0686,37.5181],[127.0693,37.5172],[127.0719,37.5022],[127.0765,37.4986],[127.0805,37.4978],[127.0989,37.493],[127.1043,37.4907],[127.1078,37.4886],[127.1112,37.4857],[127.1144,37.4807],[127.1138,37.4796],[127.1227,37.4676],[127.1244,37.4644],[127.1244,37.4624],[127.1196,37.4594],[127.1189,37.4558],[127.1154,37.4572],[127.1141,37.4588],[127.1084,37.4597],[127.1056,37.4568],[127.1003,37.456],[127.0984,37.4586],[127.0971,37.4608],[127.0904,37.4655],[127.0866,37.4701],[127.0864,37.4727],[127.0803,37.472],[127.076,37.4701],[127.0748,37.472],[127.0723,37.4723],[127.0714,37.4711],[127.0646,37.47],[127.0637,37.4662],[127.0589,37.4656],[127.0559,37.4659],[127.0471,37.4745],[127.0435,37.4828],[127.0362,37.4818],[127.0337,37.4867],[127.0227,37.51],[127.0204,37.5177],[127.0192,37.5201],[127.014,37.525],[127.023,37.5323],[127.027,37.5348],[127.032,37.5361],[127.0481,37.5297],[127.049,37.5314],[127.0512,37.5298],[127.0587,37.5263]]]}},{"type":"Feature","properties":{"name":"서초구"},"geometry":{"type":"Polygon","coordinates":[[[127.014,37.525],[127.0192,37.5201],[127.0204,37.5177],[127.0227,37.51],[127.0337,37.4867],[127.0362,37.4818],[127.0435,37.4828],[127.0471,37.4745],[127.0559,37.4659],[127.0589,37.4656],[127.0637,37.4662],[127.0646,37.47],[127.0714,37.4711],[127.0723,37.4723],[127.0748,37.472],[127.076,37.4701],[127.0803,37.472],[127.0864,37.4727],[127.0866,37.4701],[127.0904,37.4655],[127.0971,37.4608],[127.0984,37.4586],[127.0967,37.456],[127.0972,37.4537],[127.0958,37.4533],[127.0947,37.4509],[127.0929,37.45],[127.0905,37.4464],[127.0905,37.443],[127.0862,37.4412],[127.0844,37.4384],[127.0769,37.4396],[127.0738,37.439],[127.0741,37.4372],[127.0767,37.436],[127.076,37.4343],[127.0736,37.4332],[127.0727,37.4294],[127.0734,37.4281],[127.0689,37.4273],[127.0678,37.4262],[127.0632,37.4273],[127.06,37.4273],[127.0542,37.4257],[127.052,37.4275],[127.0496,37.428],[127.0485,37.4307],[127.0419,37.4357],[127.038,37.4363],[127.0375,37.4384],[127.0403,37.4419],[127.0396,37.4436],[127.0399,37.4466],[127.0383,37.4488],[127.0392,37.4518],[127.0388,37.4538],[127.037,37.4554],[127.0357,37.4587],[127.0368,37.461],[127.0334,37.463],[127.0282,37.4557],[127.0226,37.4534],[127.0183,37.4526],[127.0132,37.4526],[127.0111,37.4546],[127.0084,37.4594],[127.0074,37.4598],[127.0055,37.4645],[127.0001,37.4646],[126.9984,37.4639],[126.9993,37.4611],[126.9989,37.4594],[126.9953,37.4586],[126.9907,37.4553],[126.9896,37.4576],[126.9903,37.4627],[126.989,37.465],[126.9866,37.4669],[126.9846,37.47],[126.9837,37.4739],[126.985,37.4936],[126.9872,37.4972],[126.9832,37.4995],[126.9824,37.5012],[126.9822,37.5093],[126.9846,37.5107],[126.9895,37.5109],[126.9915,37.5099],[127.0001,37.5139],[127.0058,37.5169],[127.0082,37.5188],[127.0102,37.522],[127.014,37.525]]]}},{"type":"Feature","properties":{"name":"관악구"},"geometry":{"type":"Polygon","coordinates":[[[126.9837,37.4739],[126.9846,37.47],[126.9866,37.4669],[126.989,37.465],[126.9903,37.4627],[126.9896,37.4576],[126.9907,37.4553],[126.9848,37.4539],[126.9829,37.4502],[126.9784,37.4477],[126.9761,37.4448],[126.9731,37.4447],[126.9665,37.4428],[126.9662,37.4394],[126.9652,37.4382],[126.9615,37.438],[126.9605,37.4367],[126.9553,37.4367],[126.9474,37.4348],[126.9444,37.4348],[126.9415,37.4332],[126.9404,37.4346],[126.9406,37.4375],[126.9377,37.4404],[126.9331,37.4429],[126.9331,37.4453],[126.9308,37.4474],[126.9253,37.4516],[126.9245,37.4539],[126.9189,37.455],[126.9168,37.4549],[126.9164,37.4587],[126.915,37.4612],[126.9158,37.4625],[126.9137,37.4638],[126.9103,37.4698],[126.9128,37.4708],[126.9141,37.4742],[126.9116,37.4754],[126.9118,37.4781],[126.9028,37.4765],[126.9016,37.4775],[126.9053,37.4822],[126.9081,37.4822],[126.9153,37.4844],[126.9192,37.4866],[126.9264,37.4872],[126.9287,37.4913],[126.9298,37.4922],[126.9335,37.4904],[126.9367,37.4903],[126.9384,37.4894],[126.9437,37.4894],[126.9492,37.4913],[126.954,37.4896],[126.956,37.4882],[126.9588,37.4887],[126.9633,37.4906],[126.9629,37.488],[126.9644,37.4844],[126.9634,37.4807],[126.9726,37.4726],[126.979,37.4738],[126.9837,37.4739]]]}},{"type":"Feature","properties":{"name":"동작구"},"geometry":{"type":"Polygon","coordinates":[[[126.9822,37.5093],[126.9824,37.5012],[126.9832,37.4995],[126.9872,37.4972],[126.985,37.4936],[126.9837,37.4739],[126.979,37.4738],[126.9726,37.4726],[126.9634,37.4807],[126.9644,37.4844],[126.9629,37.488],[126.9633,37.4906],[126.9588,37.4887],[126.956,37.4882],[126.954,37.4896],[126.9492,37.4913],[126.9437,37.4894],[126.9384,37.4894],[126.9367,37.4903],[126.9335,37.4904],[126.9298,37.4922],[126.9287,37.4913],[126.9264,37.4872],[126.9192,37.4866],[126.9153,37.4844],[126.9081,37.4822],[126.9053,37.4822],[126.9146,37.4936],[126.9218,37.4949],[126.9232,37.4993],[126.9275,37.5099],[126.9292,37.5102],[126.9281,37.5133],[126.9345,37.5129],[126.9441,37.5146],[126.9525,37.5172],[126.9555,37.5147],[126.9595,37.5125],[126.9667,37.51],[126.9822,37.5093]]]}},{"type":"Feature","properties":{"name":"영등포구"},"geometry":{"type":"Polygon","coordinates":[[[126.8918,37.5474],[126.9028,37.5413],[126.9083,37.5392],[126.9313,37.5342],[126.9368,37.5334],[126.9457,37.5266],[126.9488,37.5242],[126.95,37.5208],[126.9525,37.5172],[126.9441,37.5146],[126.9345,37.5129],[126.9281,37.5133],[126.9292,37.5102],[126.9275,37.5099],[126.9232,37.4993],[126.9218,37.4949],[126.9146,37.4936],[126.9053,37.4822],[126.9026,37.4828],[126.8986,37.4863],[126.8958,37.4939],[126.8955,37.5003],[126.8959,37.5047],[126.8925,37.5088],[126.8816,37.514],[126.8819,37.5194],[126.8826,37.5224],[126.8838,37.5235],[126.889,37.5259],[126.8906,37.5279],[126.8921,37.5276],[126.8936,37.5303],[126.8934,37.533],[126.8894,37.5406],[126.8883,37.5408],[126.8874,37.5435],[126.8918,37.5474]]]}},{"type":"Feature","properties":{"name":"금천구"},"geometry":{"type":"Polygon","coordinates":[[[126.9016,37.4775],[126.9028,37.4765],[126.9118,37.4781],[126.9116,37.4754],[126.9141,37.4742],[126.9128,37.4708],[126.9103,37.4698],[126.9137,37.4638],[126.9158,37.4625],[126.915,37.4612],[126.9164,37.4587],[126.9168,37.4549],[126.9189,37.455],[126.9245,37.4539],[126.9253,37.4516],[126.9308,37.4474],[126.9256,37.4438],[126.9232,37.4413],[126.922,37.4385],[126.92,37.4371],[126.9164,37.4372],[126.9134,37.4347],[126.9108,37.431],[126.9049,37.4313],[126.9048,37.4331],[126.9015,37.4353],[126.9008,37.4365],[126.9011,37.4403],[126.9003,37.4418],[126.8977,37.4429],[126.8981,37.4455],[126.8962,37.4498],[126.8947,37.4491],[126.8916,37.4499],[126.8911,37.4524],[126.8883,37.4536],[126.8883,37.4566],[126.8907,37.4597],[126.882,37.47],[126.8787,37.4748],[126.8755,37.4819],[126.8768,37.4826],[126.8808,37.4838],[126.8827,37.4832],[126.888,37.4798],[126.8912,37.4768],[126.8969,37.4757],[126.901,37.4761],[126.9016,37.4775]]]}},{"type":"Feature","properties":{"name":"구로구"},"geometry":{"type":"Polygon","coordinates":[[[126.8269,37.5055],[126.8312,37.5054],[126.8342,37.5024],[126.8385,37.4997],[126.8427,37.5012],[126.8421,37.5027],[126.8469,37.5029],[126.8473,37.5052],[126.8508,37.506],[126.8522,37.5073],[126.855,37.5078],[126.8577,37.5064],[126.8602,37.5071],[126.8622,37.5039],[126.8645,37.5039],[126.8653,37.5024],[126.868,37.5028],[126.8711,37.502],[126.8743,37.5026],[126.8756,37.5057],[126.8805,37.5115],[126.8816,37.514],[126.8925,37.5088],[126.8959,37.5047],[126.8955,37.5003],[126.8958,37.4939],[126.8986,37.4863],[126.9026,37.4828],[126.9053,37.4822],[126.9016,37.4775],[126.901,37.4761],[126.8969,37.4757],[126.8912,37.4768],[126.888,37.4798],[126.8827,37.4832],[126.8808,37.4838],[126.8768,37.4826],[126.8793,37.4851],[126.8781,37.4862],[126.875,37.4855],[126.875,37.4872],[126.8699,37.491],[126.8669,37.4885],[126.8633,37.487],[126.8598,37.4831],[126.8572,37.4824],[126.8558,37.4801],[126.854,37.4788],[126.8491,37.4793],[126.848,37.4782],[126.8476,37.4715],[126.8415,37.4729],[126.8375,37.4725],[126.8339,37.4748],[126.8314,37.4734],[126.8266,37.4736],[126.8242,37.473],[126.8218,37.4752],[126.8221,37.4789],[126.8214,37.4814],[126.8221,37.483],[126.8256,37.485],[126.8248,37.4872],[126.8199,37.4888],[126.8165,37.4905],[126.8148,37.4934],[126.8152,37.4952],[126.8177,37.4947],[126.8208,37.4959],[126.822,37.4985],[126.8237,37.4993],[126.825,37.503],[126.8247,37.505],[126.8269,37.5055]]]}},{"type":"Feature","properties":{"name":"강서구"},"geometry":{"type":"Polygon","coordinates":[[[126.8598,37.5718],[126.8595,37.5683],[126.8605,37.5668],[126.8684,37.5631],[126.88,37.5551],[126.8918,37.5474],[126.8874,37.5435],[126.8883,37.5408],[126.8872,37.5408],[126.8828,37.5451],[126.8761,37.5441],[126.8728,37.5449],[126.8664,37.5486],[126.8643,37.5417],[126.8658,37.5382],[126.8655,37.5338],[126.8661,37.527],[126.851,37.5251],[126.8426,37.5237],[126.8366,37.5337],[126.8372,37.5349],[126.8352,37.539],[126.8325,37.539],[126.8319,37.5415],[126.8302,37.5426],[126.8289,37.5391],[126.8242,37.5379],[126.8167,37.5378],[126.8125,37.5388],[126.8114,37.5403],[126.8054,37.5401],[126.8019,37.5376],[126.8009,37.535],[126.7969,37.533],[126.7958,37.5366],[126.7969,37.5387],[126.7939,37.539],[126.7939,37.541],[126.7908,37.5417],[126.7888,37.5435],[126.782,37.5434],[126.7776,37.5461],[126.7732,37.5459],[126.7698,37.5505],[126.767,37.5528],[126.7707,37.553],[126.7715,37.5543],[126.7788,37.5592],[126.7789,37.5614],[126.7767,37.5645],[126.7799,37.5642],[126.7825,37.5654],[126.7847,37.5675],[126.784,37.5691],[126.785,37.5709],[126.7917,37.5747],[126.7954,37.5745],[126.7952,37.5776],[126.7959,37.5802],[126.798,37.5804],[126.8009,37.5854],[126.8029,37.5862],[126.8013,37.5884],[126.8015,37.5901],[126.7997,37.593],[126.7991,37.5957],[126.8005,37.5983],[126.802,37.5985],[126.8027,37.6013],[126.8039,37.6019],[126.8076,37.6009],[126.8181,37.5916],[126.8225,37.588],[126.8289,37.5856],[126.853,37.5728],[126.8598,37.5718]]]}},{"type":"Feature","properties":{"name":"양천구"},"geometry":{"type":"Polygon","coordinates":[[[126.8242,37.5379],[126.8289,37.5391],[126.8302,37.5426],[126.8319,37.5415],[126.8325,37.539],[126.8352,37.539],[126.8372,37.5349],[126.8366,37.5337],[126.8426,37.5237],[126.851,37.5251],[126.8661,37.527],[126.8655,37.5338],[126.8658,37.5382],[126.8643,37.5417],[126.8664,37.5486],[126.8728,37.5449],[126.8761,37.5441],[126.8828,37.5451],[126.8872,37.5408],[126.8883,37.5408],[126.8894,37.5406],[126.8934,37.533],[126.8936,37.5303],[126.8921,37.5276],[126.8906,37.5279],[126.889,37.5259],[126.8838,37.5235],[126.8826,37.5224],[126.8819,37.5194],[126.8816,37.514],[126.8805,37.5115],[126.8756,37.5057],[126.8743,37.5026],[126.8711,37.502],[126.868,37.5028],[126.8653,37.5024],[126.8645,37.5039],[126.8622,37.5039],[126.8602,37.5071],[126.8577,37.5064],[126.855,37.5078],[126.8522,37.5073],[126.8508,37.506],[126.8473,37.5052],[126.8469,37.5029],[126.8421,37.5027],[126.8427,37.5012],[126.8385,37.4997],[126.8342,37.5024],[126.8312,37.5054],[126.8269,37.5055],[126.8261,37.5078],[126.8267,37.5104],[126.8253,37.5134],[126.8276,37.5169],[126.8274,37.52],[126.8305,37.5239],[126.8294,37.5268],[126.8277,37.5271],[126.8239,37.532],[126.8242,37.5379]]]}},{"type":"Feature","properties":{"name":"마포구"},"geometry":{"type":"Polygon","coordinates":[[[126.9052,37.5741],[126.9037,37.5727],[126.9069,37.5706],[126.9219,37.5639],[126.9278,37.5625],[126.9303,37.5605],[126.9288,37.5582],[126.9287,37.556],[126.939,37.5523],[126.9431,37.5536],[126.9592,37.5547],[126.9608,37.5539],[126.9636,37.5561],[126.9652,37.5536],[126.9638,37.5525],[126.9645,37.5487],[126.966,37.5469],[126.964,37.5458],[126.9623,37.5435],[126.9606,37.5427],[126.9593,37.539],[126.9534,37.5335],[126.9472,37.5321],[126.9457,37.5266],[126.9368,37.5334],[126.9313,37.5342],[126.9083,37.5392],[126.9028,37.5413],[126.8918,37.5474],[126.88,37.5551],[126.8684,37.5631],[126.8605,37.5668],[126.8595,37.5683],[126.8598,37.5718],[126.8599,37.5728],[126.8638,37.5731],[126.8656,37.5739],[126.8677,37.5727],[126.8701,37.5746],[126.8728,37.575],[126.878,37.5768],[126.8792,37.5797],[126.8788,37.5813],[126.8811,37.5838],[126.8824,37.5868],[126.8843,37.5881],[126.8915,37.582],[126.8953,37.5794],[126.8974,37.5787],[126.9002,37.5755],[126.9037,37.5731],[126.9052,37.5741]]]}},{"type":"Feature","properties":{"name":"서대문구"},"geometry":{"type":"Polygon","coordinates":[[[126.9525,37.6051],[126.9548,37.6038],[126.9556,37.6018],[126.9548,37.5976],[126.9562,37.5958],[126.9592,37.5955],[126.9584,37.5924],[126.9604,37.5887],[126.9605,37.5872],[126.9588,37.5819],[126.9618,37.5797],[126.9579,37.5779],[126.9557,37.5761],[126.9687,37.5631],[126.9717,37.5592],[126.969,37.5585],[126.9657,37.5565],[126.9636,37.5561],[126.9608,37.5539],[126.9592,37.5547],[126.9431,37.5536],[126.939,37.5523],[126.9287,37.556],[126.9288,37.5582],[126.9303,37.5605],[126.9278,37.5625],[126.9219,37.5639],[126.9069,37.5706],[126.9037,37.5727],[126.9052,37.5741],[126.9146,37.5832],[126.9183,37.5828],[126.9179,37.5803],[126.9244,37.5812],[126.926,37.5844],[126.9282,37.5844],[126.9302,37.5856],[126.93,37.5877],[126.931,37.59],[126.9358,37.5936],[126.9428,37.5959],[126.9436,37.6003],[126.9445,37.602],[126.947,37.602],[126.9492,37.6051],[126.9525,37.6051]]]}},{"type":"Feature","properties":{"name":"은평구"},"geometry":{"type":"Polygon","coordinates":[[[126.9739,37.6295],[126.9714,37.6274],[126.9616,37.6257],[126.9589,37.6226],[126.9543,37.622],[126.9539,37.6188],[126.9528,37.6161],[126.9515,37.6149],[126.9525,37.6133],[126.9531,37.6093],[126.9519,37.606],[126.9525,37.6051],[126.9492,37.6051],[126.947,37.602],[126.9445,37.602],[126.9436,37.6003],[126.9428,37.5959],[126.9358,37.5936],[126.931,37.59],[126.93,37.5877],[126.9302,37.5856],[126.9282,37.5844],[126.926,37.5844],[126.9244,37.5812],[126.9179,37.5803],[126.9183,37.5828],[126.9146,37.5832],[126.9052,37.5741],[126.9037,37.5731],[126.9002,37.5755],[126.8974,37.5787],[126.8953,37.5794],[126.8915,37.582],[126.8843,37.5881],[126.8872,37.591],[126.8894,37.591],[126.8875,37.5883],[126.8894,37.5858],[126.8935,37.5857],[126.8953,37.5864],[126.8991,37.5858],[126.9019,37.5871],[126.9011,37.5899],[126.904,37.5923],[126.9032,37.5945],[126.9036,37.5966],[126.9024,37.6004],[126.9042,37.601],[126.904,37.6072],[126.903,37.61],[126.9055,37.616],[126.9072,37.6165],[126.9094,37.6191],[126.9085,37.6212],[126.9108,37.6234],[126.9112,37.6256],[126.9086,37.6297],[126.913,37.6331],[126.9123,37.6359],[126.9138,37.6382],[126.9146,37.6415],[126.9097,37.6435],[126.9104,37.6447],[126.916,37.6419],[126.9234,37.6428],[126.9275,37.6447],[126.931,37.6472],[126.9366,37.6478],[126.9391,37.6491],[126.9425,37.6538],[126.9457,37.6554],[126.9494,37.6561],[126.9498,37.6546],[126.9533,37.6522],[126.9565,37.6525],[126.9589,37.6499],[126.9597,37.6464],[126.9622,37.6455],[126.9642,37.6407],[126.9665,37.6403],[126.9709,37.6359],[126.9709,37.6337],[126.9739,37.6295]]]}},{"type":"Feature","properties":{"name":"노원구"},"geometry":{"type":"Polygon","coordinates":[[[127.1078,37.618],[127.1036,37.617],[127.1019,37.6153],[127.0983,37.6143],[127.0913,37.617],[127.088,37.6175],[127.0833,37.6163],[127.0735,37.6128],[127.0701,37.6128],[127.0673,37.6114],[127.0641,37.6116],[127.0563,37.6174],[127.0521,37.6216],[127.05,37.6241],[127.0436,37.6285],[127.046,37.6306],[127.0471,37.6341],[127.0523,37.642],[127.057,37.638],[127.058,37.6432],[127.0564,37.6481],[127.0562,37.653],[127.0537,37.6578],[127.0534,37.6609],[127.0509,37.6663],[127.0512,37.6703],[127.0526,37.6746],[127.054,37.682],[127.0529,37.6842],[127.0567,37.6865],[127.0589,37.6868],[127.0637,37.686],[127.0672,37.6871],[127.0715,37.6916],[127.075,37.6917],[127.0795,37.6936],[127.0839,37.6936],[127.0864,37.6912],[127.0883,37.6875],[127.0971,37.6864],[127.0984,37.683],[127.0948,37.6788],[127.0939,37.6764],[127.0957,37.6738],[127.0966,37.6707],[127.0977,37.67],[127.098,37.6674],[127.0962,37.6635],[127.0985,37.6591],[127.0979,37.6567],[127.0885,37.6527],[127.095,37.6521],[127.0962,37.65],[127.0944,37.6471],[127.0969,37.6428],[127.1002,37.6423],[127.1027,37.6429],[127.1101,37.6419],[127.1141,37.6374],[127.1145,37.6324],[127.1131,37.6278],[127.1074,37.6241],[127.1074,37.6224],[127.1056,37.6201],[127.1078,37.618]]]}},{"type":"Feature","properties":{"name":"도봉구"},"geometry":{"type":"Polygon","coordinates":[[[127.0529,37.6842],[127.054,37.682],[127.0526,37.6746],[127.0512,37.6703],[127.0509,37.6663],[127.0534,37.6609],[127.0537,37.6578],[127.0562,37.653],[127.0564,37.6481],[127.058,37.6432],[127.057,37.638],[127.0523,37.642],[127.0471,37.6341],[127.046,37.6306],[127.0436,37.6285],[127.0406,37.6311],[127.0391,37.634],[127.0366,37.6351],[127.0348,37.6388],[127.0295,37.6423],[127.0266,37.6447],[127.0223,37.6463],[127.0177,37.6463],[127.0153,37.6477],[127.0147,37.6494],[127.016,37.6562],[127.0173,37.6588],[127.0178,37.6639],[127.0206,37.6672],[127.0187,37.6699],[127.016,37.6726],[127.014,37.6765],[127.0107,37.6769],[127.0104,37.6819],[127.011,37.6844],[127.0102,37.6863],[127.011,37.6919],[127.0141,37.6955],[127.0165,37.6955],[127.018,37.6983],[127.0214,37.6986],[127.0242,37.6968],[127.027,37.6967],[127.0302,37.6978],[127.0313,37.6962],[127.0318,37.6934],[127.0333,37.6901],[127.0345,37.689],[127.0379,37.6894],[127.0438,37.6926],[127.0451,37.691],[127.0477,37.6896],[127.0511,37.6912],[127.0529,37.6842]]]}},{"type":"Feature","properties":{"name":"강북구"},"geometry":{"type":"Polygon","coordinates":[[[127.0104,37.6819],[127.0107,37.6769],[127.014,37.6765],[127.016,37.6726],[127.0187,37.6699],[127.0206,37.6672],[127.0178,37.6639],[127.0173,37.6588],[127.016,37.6562],[127.0147,37.6494],[127.0153,37.6477],[127.0177,37.6463],[127.0223,37.6463],[127.0266,37.6447],[127.0295,37.6423],[127.0348,37.6388],[127.0366,37.6351],[127.0391,37.634],[127.0406,37.6311],[127.0436,37.6285],[127.05,37.6241],[127.0521,37.6216],[127.0489,37.6197],[127.0461,37.6159],[127.042,37.6128],[127.0389,37.6097],[127.0325,37.6063],[127.0323,37.6095],[127.0285,37.6099],[127.0243,37.6085],[127.0214,37.611],[127.0169,37.6128],[127.0128,37.6137],[127.0106,37.6157],[127.0096,37.6182],[127.01,37.6211],[127.0021,37.623],[126.9987,37.6263],[126.9961,37.6272],[126.9953,37.6292],[126.9934,37.6292],[126.9877,37.6327],[126.9867,37.6338],[126.9883,37.6374],[126.9854,37.6408],[126.9871,37.6432],[126.9858,37.647],[126.9833,37.6495],[126.9817,37.6521],[126.9821,37.6538],[126.9871,37.6565],[126.9903,37.661],[126.9949,37.6622],[126.9958,37.6651],[126.9962,37.6694],[126.9951,37.6748],[126.9938,37.6767],[126.996,37.6775],[127,37.681],[127.0057,37.6823],[127.0104,37.6819]]]}},{"type":"Feature","properties":{"name":"성북구"},"geometry":{"type":"Polygon","coordinates":[[[126.9772,37.6286],[126.9794,37.6307],[126.9836,37.6319],[126.9867,37.6338],[126.9877,37.6327],[126.9934,37.6292],[126.9953,37.6292],[126.9961,37.6272],[126.9987,37.6263],[127.0021,37.623],[127.01,37.6211],[127.0096,37.6182],[127.0106,37.6157],[127.0128,37.6137],[127.0169,37.6128],[127.0214,37.611],[127.0243,37.6085],[127.0285,37.6099],[127.0323,37.6095],[127.0325,37.6063],[127.0389,37.6097],[127.042,37.6128],[127.0461,37.6159],[127.0489,37.6197],[127.0521,37.6216],[127.0563,37.6174],[127.0641,37.6116],[127.0673,37.6114],[127.0701,37.6128],[127.0735,37.6128],[127.0738,37.604],[127.0726,37.6065],[127.0707,37.6065],[127.0708,37.6041],[127.0675,37.6027],[127.0642,37.6023],[127.0613,37.5982],[127.0595,37.5987],[127.0541,37.5972],[127.0524,37.5983],[127.0498,37.5935],[127.0461,37.5935],[127.0427,37.5924],[127.0412,37.5885],[127.0385,37.5871],[127.0312,37.5796],[127.0253,37.5752],[127.024,37.5761],[127.0204,37.5758],[127.0185,37.579],[127.0168,37.5794],[127.0109,37.5777],[127.0091,37.5793],[127.009,37.5825],[127.008,37.5841],[127.0045,37.5863],[127.003,37.5896],[126.9977,37.5894],[126.9965,37.5885],[126.9935,37.5886],[126.9886,37.5897],[126.986,37.5911],[126.9841,37.5931],[126.9837,37.5964],[126.987,37.5966],[126.9898,37.5984],[126.988,37.6043],[126.9891,37.6078],[126.9888,37.6119],[126.9849,37.6139],[126.983,37.62],[126.9813,37.6218],[126.9816,37.6264],[126.9788,37.6261],[126.9772,37.6286]]]}},{"type":"Feature","properties":{"name":"중랑구"},"geometry":{"type":"Polygon","coordinates":[[[127.0735,37.6128],[127.0833,37.6163],[127.088,37.6175],[127.0913,37.617],[127.0983,37.6143],[127.1019,37.6153],[127.1036,37.617],[127.1078,37.618],[127.1135,37.6179],[127.1192,37.615],[127.1188,37.6134],[127.1197,37.6089],[127.1188,37.6061],[127.1204,37.6048],[127.1201,37.6018],[127.1159,37.5972],[127.1162,37.5962],[127.1205,37.5922],[127.1199,37.5912],[127.1155,37.5905],[127.1126,37.5864],[127.1114,37.5819],[127.1036,37.581],[127.1049,37.579],[127.1048,37.5755],[127.1032,37.5729],[127.103,37.5708],[127.1016,37.5697],[127.0933,37.5668],[127.0855,37.5686],[127.0807,37.5691],[127.0803,37.5752],[127.0791,37.5786],[127.0733,37.586],[127.0715,37.5934],[127.0722,37.5954],[127.0746,37.5983],[127.0748,37.6],[127.0738,37.604],[127.0735,37.6128]]]}},{"type":"Feature","properties":{"name":"동대문구"},"geometry":{"type":"Polygon","coordinates":[[[127.0253,37.5752],[127.0312,37.5796],[127.0385,37.5871],[127.0412,37.5885],[127.0427,37.5924],[127.0461,37.5935],[127.0498,37.5935],[127.0524,37.5983],[127.0541,37.5972],[127.0595,37.5987],[127.0613,37.5982],[127.0642,37.6023],[127.0675,37.6027],[127.0708,37.6041],[127.0707,37.6065],[127.0726,37.6065],[127.0738,37.604],[127.0748,37.6],[127.0746,37.5983],[127.0722,37.5954],[127.0715,37.5934],[127.0733,37.586],[127.0791,37.5786],[127.0803,37.5752],[127.0807,37.5691],[127.0742,37.5572],[127.0729,37.5578],[127.0615,37.5594],[127.0603,37.5599],[127.0501,37.5676],[127.0443,37.5702],[127.04,37.5701],[127.0348,37.5675],[127.0318,37.5671],[127.0255,37.5689],[127.0253,37.5752]]]}},{"type":"Feature","properties":{"name":"광진구"},"geometry":{"type":"Polygon","coordinates":[[[127.0807,37.5691],[127.0855,37.5686],[127.0933,37.5668],[127.1016,37.5697],[127.103,37.5708],[127.1063,37.5681],[127.1055,37.5669],[127.1041,37.5596],[127.1033,37.5572],[127.1127,37.557],[127.1152,37.5575],[127.116,37.5558],[127.116,37.5505],[127.1142,37.5447],[127.1117,37.5407],[127.1048,37.5312],[127.1009,37.5248],[127.0944,37.524],[127.0864,37.5216],[127.0797,37.5208],[127.075,37.5209],[127.0691,37.5223],[127.0587,37.5263],[127.069,37.5444],[127.0758,37.5566],[127.0742,37.5572],[127.0807,37.5691]]]}},{"type":"Feature","properties":{"name":"성동구"},"geometry":{"type":"Polygon","coordinates":[[[127.0255,37.5689],[127.0318,37.5671],[127.0348,37.5675],[127.04,37.5701],[127.0443,37.5702],[127.0501,37.5676],[127.0603,37.5599],[127.0615,37.5594],[127.0729,37.5578],[127.0742,37.5572],[127.0758,37.5566],[127.069,37.5444],[127.0587,37.5263],[127.0512,37.5298],[127.049,37.5314],[127.0481,37.5297],[127.032,37.5361],[127.027,37.5348],[127.023,37.5323],[127.0169,37.5361],[127.0116,37.5368],[127.0104,37.5391],[127.0107,37.5412],[127.0117,37.5453],[127.0138,37.5457],[127.0189,37.5506],[127.0195,37.5532],[127.0217,37.5547],[127.025,37.5551],[127.0258,37.5584],[127.0284,37.5602],[127.0288,37.5622],[127.0257,37.5624],[127.0255,37.5689]]]}},{"type":"Feature","properties":{"name":"용산구"},"geometry":{"type":"Polygon","coordinates":[[[127.0107,37.5412],[127.0104,37.5391],[127.0116,37.5368],[127.0169,37.5361],[127.023,37.5323],[127.014,37.525],[127.0102,37.522],[127.0082,37.5188],[127.0058,37.5169],[127.0001,37.5139],[126.9915,37.5099],[126.9895,37.5109],[126.9846,37.5107],[126.9822,37.5093],[126.9667,37.51],[126.9595,37.5125],[126.9555,37.5147],[126.9525,37.5172],[126.95,37.5208],[126.9488,37.5242],[126.9457,37.5266],[126.9472,37.5321],[126.9534,37.5335],[126.9593,37.539],[126.9606,37.5427],[126.9623,37.5435],[126.964,37.5458],[126.966,37.5469],[126.9645,37.5487],[126.9678,37.5513],[126.9743,37.5511],[126.9786,37.5503],[126.9793,37.5522],[126.9826,37.5506],[126.9858,37.5502],[126.9875,37.5509],[126.9899,37.5487],[126.9924,37.5486],[126.9974,37.5444],[127.0006,37.5471],[127.0048,37.5468],[127.0063,37.5476],[127.0069,37.5434],[127.0094,37.541],[127.0107,37.5412]]]}},{"type":"Feature","properties":{"name":"중구"},"geometry":{"type":"Polygon","coordinates":[[[127.0255,37.5689],[127.0257,37.5624],[127.0288,37.5622],[127.0284,37.5602],[127.0258,37.5584],[127.025,37.5551],[127.0217,37.5547],[127.0195,37.5532],[127.0189,37.5506],[127.0138,37.5457],[127.0117,37.5453],[127.0107,37.5412],[127.0094,37.541],[127.0069,37.5434],[127.0063,37.5476],[127.0048,37.5468],[127.0006,37.5471],[126.9974,37.5444],[126.9924,37.5486],[126.9899,37.5487],[126.9875,37.5509],[126.9858,37.5502],[126.9826,37.5506],[126.9793,37.5522],[126.9786,37.5503],[126.9743,37.5511],[126.9678,37.5513],[126.9645,37.5487],[126.9638,37.5525],[126.9652,37.5536],[126.9636,37.5561],[126.9657,37.5565],[126.969,37.5585],[126.9717,37.5592],[126.9687,37.5631],[126.9711,37.5654],[126.975,37.5664],[126.9799,37.5665],[126.991,37.5653],[126.9988,37.5659],[127.0037,37.5668],[127.0179,37.567],[127.0225,37.5689],[127.0255,37.5689]]]}},{"type":"Feature","properties":{"name":"종로구"},"geometry":{"type":"Polygon","coordinates":[[[126.9739,37.6295],[126.9772,37.6286],[126.9788,37.6261],[126.9816,37.6264],[126.9813,37.6218],[126.983,37.62],[126.9849,37.6139],[126.9888,37.6119],[126.9891,37.6078],[126.988,37.6043],[126.9898,37.5984],[126.987,37.5966],[126.9837,37.5964],[126.9841,37.5931],[126.986,37.5911],[126.9886,37.5897],[126.9935,37.5886],[126.9965,37.5885],[126.9977,37.5894],[127.003,37.5896],[127.0045,37.5863],[127.008,37.5841],[127.009,37.5825],[127.0091,37.5793],[127.0109,37.5777],[127.0168,37.5794],[127.0185,37.579],[127.0204,37.5758],[127.024,37.5761],[127.0253,37.5752],[127.0255,37.5689],[127.0225,37.5689],[127.0179,37.567],[127.0037,37.5668],[126.9988,37.5659],[126.991,37.5653],[126.9799,37.5665],[126.975,37.5664],[126.9711,37.5654],[126.9687,37.5631],[126.9557,37.5761],[126.9579,37.5779],[126.9618,37.5797],[126.9588,37.5819],[126.9605,37.5872],[126.9604,37.5887],[126.9584,37.5924],[126.9592,37.5955],[126.9562,37.5958],[126.9548,37.5976],[126.9556,37.6018],[126.9548,37.6038],[126.9525,37.6051],[126.9519,37.606],[126.9531,37.6093],[126.9525,37.6133],[126.9515,37.6149],[126.9528,37.6161],[126.9539,37.6188],[126.9543,37.622],[126.9589,37.6226],[126.9616,37.6257],[126.9714,37.6274],[126.9739,37.6295]]]}}]};
+window.SEOUL_GEO = SEOUL_GEO_INLINE;
+</script>
+
+<script>
+// ══════════════════════════════════════════════════════
+//  STATE
+// ══════════════════════════════════════════════════════
+let selectedYear = LATEST_YEAR;
+let selectedType = '전체';
+let selectedMetric = 'total';
+let charts = {};
+let map12Instance = null, map12Layer = null, map12Labels = [];
+let sidePanelDonutChart = null;
+let currentOpenDistrict = null;
+
+// ══════════════════════════════════════════════════════
+//  UTILS
+// ══════════════════════════════════════════════════════
+function fmt(n, decimals=0) {
+  if (n == null) return '—';
+  return (+n).toLocaleString('ko-KR', {minimumFractionDigits: decimals, maximumFractionDigits: decimals});
+}
+function getDistName(props) { return props.name || props.SIG_KOR_NM || ''; }
+function lerp(a, b, t) { return Math.round(a + (b-a)*t); }
+function colorGreen(t) { return `rgb(${lerp(209,5,t)},${lerp(240,150,t)},${lerp(224,105,t)})`; }
+function colorAmber(t) { return `rgb(${lerp(254,146,t)},${lerp(243,64,t)},${lerp(199,14,t)})`; }
+
+// Tooltip (ⓘ)
+document.addEventListener('mouseover', e => {
+  const el = e.target.closest('[data-tip]');
+  if (!el) return;
+  const ttp = document.getElementById('ttp');
+  ttp.textContent = el.dataset.tip;
+  ttp.classList.add('show');
+});
+document.addEventListener('mousemove', e => {
+  const ttp = document.getElementById('ttp');
+  if (!ttp.classList.contains('show')) return;
+  ttp.style.left = (e.clientX + 12) + 'px';
+  ttp.style.top = (e.clientY + 12) + 'px';
+});
+document.addEventListener('mouseout', e => {
+  if (!e.target.closest('[data-tip]')) return;
+  document.getElementById('ttp').classList.remove('show');
+});
+
+// TABS
+function switchTab(i) {
+  document.querySelectorAll('.tab').forEach((t,j) => t.classList.toggle('active', i===j));
+  document.querySelectorAll('.page').forEach((p,j) => p.classList.toggle('active', i===j));
+  if (i===0 && map12Instance) setTimeout(() => map12Instance.invalidateSize(), 60);
+}
+
+// ══════════════════════════════════════════════════════
+//  [변경 3] DOCK PANEL OPEN/CLOSE
+// ══════════════════════════════════════════════════════
+function openSidePanel(district) {
+  currentOpenDistrict = district;
+  const wrapper = document.getElementById('content-12-13-wrapper');
+  const dock = document.getElementById('dock-panel');
+  wrapper.classList.add('panel-open');
+  dock.classList.add('open');
+  renderSidePanel(district);
+  // 1.2 영역(패널이 뜨는 위치)으로 부드럽게 스크롤
+  wrapper.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  // After transition, resize map
+  setTimeout(() => {
+    if (map12Instance) map12Instance.invalidateSize();
+    // resize charts
+    Object.values(charts).forEach(c => { try { c.resize(); } catch(e){} });
+  }, 380);
+}
+
+function closeSidePanel() {
+  currentOpenDistrict = null;
+  const wrapper = document.getElementById('content-12-13-wrapper');
+  const dock = document.getElementById('dock-panel');
+  wrapper.classList.remove('panel-open');
+  dock.classList.remove('open');
+  // Destroy donut chart if open
+  if (sidePanelDonutChart) { sidePanelDonutChart.destroy(); sidePanelDonutChart = null; }
+  setTimeout(() => {
+    if (map12Instance) map12Instance.invalidateSize();
+    Object.values(charts).forEach(c => { try { c.resize(); } catch(e){} });
+  }, 380);
+}
+
+// ══════════════════════════════════════════════════════
+//  1.1 — FACILITY TIMELINE & CAPACITY CHART
+// ══════════════════════════════════════════════════════
+
+// 정비 일정 기반으로 월별 정비 시설 목록 사전 생성
+// MAINT_MONTHS[월(1~12)] = [정비 중인 시설명, ...]
+const MAINT_MONTHS = (() => {
+  const map = {};
+  for (let m = 1; m <= 12; m++) map[m] = [];
+  MAINTENANCE_SCHEDULE.forEach(({ facility, start_date, end_date }) => {
+    const startMonth = new Date(start_date).getMonth() + 1;
+    const endMonth   = new Date(end_date).getMonth() + 1;
+    for (let m = startMonth; m <= endMonth; m++) {
+      if (!map[m].includes(facility)) map[m].push(facility);
+    }
+  });
+  return map;
+})();
+
+// 두 정비 일정의 날짜가 실제로 겹치는지 확인
+function doSchedulesOverlap(schedA, schedB) {
+  const aStart = new Date(schedA.start_date), aEnd = new Date(schedA.end_date);
+  const bStart = new Date(schedB.start_date), bEnd = new Date(schedB.end_date);
+  return aStart <= bEnd && bStart <= aEnd;
+}
+
+// 월 m에서 실제로 제외할 시설 목록 반환
+// - 겹치는 시설이 있으면 모두 제외
+// - 겹치지 않으면 처리량(inc_avg) 최대인 1개만 제외
+function getMaintExcludedFacs(m) {
+  const maintFacs = MAINT_MONTHS[m];
+  if (!maintFacs || maintFacs.length === 0) return [];
+  if (maintFacs.length === 1) return maintFacs;
+  const schedsInMonth = MAINTENANCE_SCHEDULE.filter(s => {
+    const sm = new Date(s.start_date).getMonth() + 1;
+    const em = new Date(s.end_date).getMonth() + 1;
+    return m >= sm && m <= em;
+  });
+  let hasOverlap = false;
+  for (let i = 0; i < schedsInMonth.length && !hasOverlap; i++)
+    for (let j = i + 1; j < schedsInMonth.length && !hasOverlap; j++)
+      if (doSchedulesOverlap(schedsInMonth[i], schedsInMonth[j])) hasOverlap = true;
+  if (hasOverlap) return maintFacs;
+  // 겹치지 않으면 처리량 최대 1개만 제외
+  let maxFac = maintFacs[0], maxAvg = FACILITY_MONTHLY[maxFac]?.monthly?.[m]?.inc_avg || 0;
+  maintFacs.forEach(f => {
+    const avg = FACILITY_MONTHLY[f]?.monthly?.[m]?.inc_avg || 0;
+    if (avg > maxAvg) { maxAvg = avg; maxFac = f; }
+  });
+  return [maxFac];
+}
+
+function init11() {
+  const now = new Date();
+  const dateStr = `${now.getFullYear()}.${String(now.getMonth()+1).padStart(2,'0')}.${String(now.getDate()).padStart(2,'0')}`;
+  document.getElementById('header-date-display').textContent = `기준일: ${dateStr}`;
+
+  const ly = LATEST_YEAR;
+  const seoulY = SEOUL_YEARLY[ly];
+  const incinerationDemand = Math.round(seoulY.total_incineration / 365);
+  const dailyLiving = Math.round(seoulY.living_waste / 365);
+  const facs = ['강남','노원','마포','양천'];
+  const annualAvgSum = facs.reduce((s,f) => s + (FACILITY_MONTHLY[f]?.annual?.inc_avg || 0), 0);
+
+  const maintFacs = MAINTENANCE_SCHEDULE.filter(m => {
+    const s = new Date(m.start_date), e = new Date(m.end_date);
+    return now >= s && now <= e;
+  });
+  const maintCapacity = maintFacs.reduce((s,m) => s + (FACILITY_MONTHLY[m.facility]?.annual?.inc_avg || 0), 0);
+
+  document.getElementById('kpi11-daily-val').textContent = fmt(dailyLiving);
+  document.getElementById('kpi11-daily-sub').textContent = `${ly}년 기준`;
+  document.getElementById('kpi11-demand-val').textContent = fmt(incinerationDemand);
+  document.getElementById('kpi11-demand-sub').textContent = `${ly}년 기준`;
+  document.getElementById('kpi11-supply-val').textContent = fmt(annualAvgSum);
+
+  const gapCurrent = incinerationDemand - annualAvgSum;
+  const gapTxt = gapCurrent > 0 ? `-${fmt(gapCurrent)}` : `+${fmt(-gapCurrent)}`;
+  const gapMaint = gapCurrent + maintCapacity;
+  const gapMaintTxt = gapMaint > 0 ? `-${fmt(gapMaint)}` : `+${fmt(-gapMaint)}`;
+  document.getElementById('kpi11-gap-val').textContent = `${gapTxt} / ${gapMaintTxt}`;
+  document.getElementById('kpi11-gap-sub').textContent = '+ 여유, - 부족 (평상시/정비시)';
+
+  drawTimeline();
+  drawCapacityChart(incinerationDemand);
+}
+
+function drawTimeline() {
+  const wrap = document.getElementById('facility-timeline');
+  const now = new Date();
+  const nowYear = now.getFullYear();
+  const nowMonth = now.getMonth();
+  const MONTHS_KR = ['1월','2월','3월','4월','5월','6월','7월','8월','9월','10월','11월','12월'];
+
+  function dateToFrac(dateStr) {
+    const d = new Date(dateStr);
+    return (d.getMonth() + (d.getDate()-1)/31) / 12;
+  }
+
+  const nowFrac = nowYear === 2026 ? (nowMonth + (now.getDate()-1)/31) / 12 : nowYear < 2026 ? 0 : 1;
+  const dateStr = `${now.getFullYear()}.${String(now.getMonth()+1).padStart(2,'0')}.${String(now.getDate()).padStart(2,'0')}`;
+  const showToday = nowFrac > 0.01 && nowFrac < 0.99;
+
+  let rowsHtml = '';
+  MAINTENANCE_SCHEDULE.forEach(m => {
+    const sf = dateToFrac(m.start_date);
+    const ef = Math.min(dateToFrac(m.end_date) + (1/12), 1);
+    const days = Math.round((new Date(m.end_date) - new Date(m.start_date)) / 86400000);
+    const startMM = m.start_date.slice(5).replace('-','/');
+    const endMM = m.end_date.slice(5).replace('-','/');
+    rowsHtml += `<div class="tl-row">
+      <div><div class="tl-name">${m.facility} 자원회수시설</div><div class="tl-cap">${fmt(m.capacity)}톤/일</div></div>
+      <div class="tl-bar-wrap"><div class="tl-bar" style="left:${sf*100}%;width:${(ef-sf)*100}%;background:#a78bfa">${days}일</div></div>
+      <div class="tl-dates">${startMM}<br>~${endMM}</div>
+    </div>`;
+  });
+
+  wrap.innerHTML = `<div class="tl-wrap">
+    <div class="tl-header">
+      <div>시설 (설계용량)</div>
+      <div class="tl-months">${MONTHS_KR.map(m=>`<span style="font-size:8px">${m}</span>`).join('')}</div>
+      <div style="text-align:right">정비 일정</div>
+    </div>
+    <div class="tl-rows-wrap" id="tl-rows-wrap">
+      ${rowsHtml}
+      ${showToday ? `<div class="tl-today-line" id="tl-today-line"></div><div class="tl-today-badge" id="tl-today-badge">오늘 (${dateStr})</div>` : ''}
+    </div>
+  </div>`;
+
+  if (showToday) {
+    requestAnimationFrame(() => {
+      const rowsWrap = document.getElementById('tl-rows-wrap');
+      if (!rowsWrap) return;
+      const barWrap = rowsWrap.querySelector('.tl-bar-wrap');
+      if (!barWrap) return;
+      const rowsRect = rowsWrap.getBoundingClientRect();
+      const barRect = barWrap.getBoundingClientRect();
+      const barLeft = barRect.left - rowsRect.left;
+      const barWidth = barRect.width;
+      const xPos = barLeft + nowFrac * barWidth;
+      const line = document.getElementById('tl-today-line');
+      const badge = document.getElementById('tl-today-badge');
+      if (line) line.style.left = xPos + 'px';
+      if (badge) badge.style.left = xPos + 'px';
+    });
+  }
+}
+
+function drawCapacityChart(incinerationDemand) {
+  const facs = ['강남','노원','마포','양천'];
+  const monthlyVals = [];
+  for (let m = 1; m <= 12; m++) {
+    const excludedFacs = getMaintExcludedFacs(m);
+    let total = 0;
+    facs.forEach(f => {
+      if (!excludedFacs.includes(f)) {
+        total += FACILITY_MONTHLY[f]?.monthly?.[m]?.inc_avg || 0;
+      }
+    });
+    monthlyVals.push(total);
+  }
+
+  const shortages = monthlyVals.map(v => incinerationDemand - v);
+  const maxShortage = Math.max(...shortages);
+  const maxShortageMonth = shortages.indexOf(maxShortage) + 1;
+  let maintMaxShortage = 0;
+  MAINTENANCE_SCHEDULE.forEach(m => {
+    const s = new Date(m.start_date), e = new Date(m.end_date);
+    for (let mo = s.getMonth(); mo <= e.getMonth() && mo < 12; mo++) {
+      if (shortages[mo] > maintMaxShortage) maintMaxShortage = shortages[mo];
+    }
+  });
+
+  document.getElementById('stat-max-month').textContent = maxShortage > 0 ? `${maxShortageMonth}월` : '없음';
+  document.getElementById('stat-max-shortage').textContent = maxShortage > 0 ? `-${fmt(maxShortage)} 톤/일` : '부족 없음';
+  document.getElementById('stat-maint-max').textContent = maintMaxShortage > 0 ? `-${fmt(maintMaxShortage)} 톤/일` : '부족 없음';
+
+  const ctx = document.getElementById('capacity-chart').getContext('2d');
+  const MONTHS_KR = ['1월','2월','3월','4월','5월','6월','7월','8월','9월','10월','11월','12월'];
+
+  const backgroundZonesPlugin = {
+    id: 'backgroundZones',
+    beforeDraw(chart) {
+      const {ctx: c, chartArea, scales} = chart;
+      if (!chartArea) return;
+      const {left, right, top, bottom} = chartArea;
+      const yDemand = scales.y.getPixelForValue(incinerationDemand);
+      c.save();
+      c.fillStyle = 'rgba(37,99,235,0.06)';
+      c.fillRect(left, top, right - left, Math.max(0, yDemand - top));
+      c.fillStyle = 'rgba(220,38,38,0.06)';
+      c.fillRect(left, yDemand, right - left, Math.max(0, bottom - yDemand));
+      c.restore();
+    }
+  };
+
+  const barLabelsPlugin = {
+    id: 'barLabels',
+    afterDatasetsDraw(chart) {
+      const {ctx: c, data, scales, chartArea} = chart;
+      if (!chartArea) return;
+      const dataset = chart.getDatasetMeta(0);
+      dataset.data.forEach((bar, i) => {
+        const diff = monthlyVals[i] - incinerationDemand;
+        const sign = diff >= 0 ? '+' : '';
+        const txt = sign + fmt(Math.round(diff));
+        const color = diff >= 0 ? '#818cf8' : '#f87171';
+        c.save();
+        c.fillStyle = color;
+        c.font = `bold 9px JetBrains Mono, monospace`;
+        c.textAlign = 'center';
+        c.fillText(txt, bar.x, bar.y - 5);
+        c.restore();
+      });
+    }
+  };
+
+  const demandLabelPlugin = {
+    id: 'demandLabel',
+    afterDraw(chart) {
+      const {ctx: c, chartArea, scales} = chart;
+      if (!chartArea) return;
+      const yPx = scales.y.getPixelForValue(incinerationDemand);
+      c.save();
+      c.fillStyle = '#f87171';
+      c.font = `600 9px JetBrains Mono, monospace`;
+      c.textAlign = 'right';
+      c.fillText('처리 대상 (연간 일평균)', chartArea.right - 2, yPx - 14);
+      c.fillText(`${fmt(incinerationDemand)}톤/일`, chartArea.right - 2, yPx - 4);
+      c.restore();
+    }
+  };
+
+  if (charts.capacity) charts.capacity.destroy();
+  charts.capacity = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: MONTHS_KR,
+      datasets: [
+        { label: '실제 처리량', data: monthlyVals, backgroundColor: 'rgba(37,99,235,0.65)', borderColor: 'rgba(37,99,235,0.85)', borderWidth: 0, borderRadius: 3 },
+        { label: '처리 대상량', data: Array(12).fill(incinerationDemand), type: 'line', borderColor: '#f87171', borderWidth: 2, borderDash: [6, 4], pointRadius: 0, fill: false, order: -1 }
+      ]
+    },
+    plugins: [backgroundZonesPlugin, barLabelsPlugin, demandLabelPlugin],
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: {
+          onClick: () => {},
+          labels: {
+            color: '#3a4252', font: { size: 10 }, boxWidth: 12,
+            generateLabels(chart) {
+              return [
+                { text: '실제 처리량', fillStyle: 'rgba(37,99,235,0.65)', strokeStyle: 'transparent', lineWidth: 0, hidden: false, datasetIndex: 0 },
+                { text: '처리 대상량', fillStyle: 'transparent', strokeStyle: '#f87171', lineWidth: 2, lineDash: [6,4], hidden: false, datasetIndex: 1 },
+                { text: '여유', fillStyle: 'rgba(37,99,235,0.15)', strokeStyle: 'transparent', lineWidth: 0, hidden: false },
+                { text: '부족', fillStyle: 'rgba(220,38,38,0.15)', strokeStyle: 'transparent', lineWidth: 0, hidden: false },
+              ];
+            }
+          }
+        },
+        tooltip: { callbacks: { label: c => { if (c.datasetIndex === 0) { const diff = c.parsed.y - incinerationDemand; const sign = diff >= 0 ? '+' : ''; return [`실제 처리량: ${fmt(c.parsed.y)}톤/일`, `${diff >= 0 ? '여유' : '부족'}: ${sign}${fmt(Math.round(diff))}톤/일`]; } return `처리 대상량: ${fmt(c.parsed.y)}톤/일`; } } }
+      },
+      scales: {
+        x: { grid: { display: false }, ticks: { color: '#5a6478', font: { size: 10 } } },
+        y: { grid: { color: 'rgba(0,0,0,.04)' }, ticks: { color: '#5a6478', font: { size: 9, family: 'JetBrains Mono' }, callback: v => fmt(v) }, min: 0, max: 3000 }
+      },
+      layout: { padding: { top: 28, right: 0 } }
+    }
+  });
+}
+
+// ══════════════════════════════════════════════════════
+//  1.2 — YEAR CONTROLS
+// ══════════════════════════════════════════════════════
+function changeYear(delta) {
+  const idx = YEARS.indexOf(selectedYear);
+  const newIdx = Math.max(0, Math.min(YEARS.length-1, idx + delta));
+  selectedYear = YEARS[newIdx];
+  document.getElementById('year-range').value = newIdx;
+  document.getElementById('year-display').textContent = selectedYear;
+  document.getElementById('year-prev').disabled = newIdx === 0;
+  document.getElementById('year-next').disabled = newIdx === YEARS.length-1;
+  onSelectedYearChange();
+}
+function onYearRange(val) {
+  selectedYear = YEARS[+val];
+  document.getElementById('year-display').textContent = selectedYear;
+  document.getElementById('year-prev').disabled = +val === 0;
+  document.getElementById('year-next').disabled = +val === YEARS.length-1;
+  onSelectedYearChange();
+}
+function setType(t, el) {
+  selectedType = t;
+  document.querySelectorAll('#type-toggle .tgl').forEach(b => b.classList.remove('active'));
+  el.classList.add('active');
+  const compTypeLabel = document.getElementById('comp-type-label');
+  if (compTypeLabel) compTypeLabel.textContent = `(${t})`;
+  onSelectedYearChange();
+}
+function setMetric(m, el) {
+  selectedMetric = m;
+  document.querySelectorAll('#metric-toggle .tgl').forEach(b => b.classList.remove('active'));
+  el.classList.add('active');
+  onSelectedYearChange();
+}
+function onSelectedYearChange() {
+  update12KPIs();
+  drawMap12();
+  renderTop5();
+  renderCompositionChart();
+  const compTypeLabel = document.getElementById('comp-type-label');
+  if (compTypeLabel) compTypeLabel.textContent = `(${selectedType})`;
+  // 사이드 패널이 열려 있으면 현재 state 기준으로 즉시 재렌더
+  if (currentOpenDistrict) {
+    renderSidePanel(currentOpenDistrict);
+  }
+}
+
+function getDistrictValue(district, year, type, metric) {
+  const dy = DISTRICT_YEAR[district]?.[year];
+  const pop = POP_DATA[district]?.[year]?.population || 1;
+  if (!dy) return 0;
+  let totalWaste;
+  if (type === '전체') totalWaste = dy.total_waste;
+  else if (type === '생활계') totalWaste = dy.living_waste;
+  else if (type === '가정') totalWaste = dy.household_waste;
+  else totalWaste = dy.total_waste;
+  if (metric === 'percap') return totalWaste / pop / 365 * 1000;
+  return totalWaste;
+}
+
+function update12KPIs() {
+  const y = selectedYear;
+  const seoulY = SEOUL_YEARLY[y];
+  document.getElementById('kpi12-total').textContent = fmt(seoulY.living_waste);
+  document.getElementById('kpi12-total-sub').textContent = `일평균 발생량: ${fmt(seoulY.daily_avg, 1)}톤/일`;
+
+  const seoulPop = Object.values(POP_DATA).reduce((s, dp) => s + (dp[y]?.population || 0), 0);
+  const seoulPerCap = seoulY.living_waste / seoulPop / 365 * 1000;
+  document.getElementById('kpi12-percap').textContent = seoulPerCap.toFixed(3);
+  document.getElementById('kpi12-percap-sub').textContent = `서울 전체 인구 기준`;
+
+  const perCaps = DISTRICTS.map(d => {
+    const dy = DISTRICT_YEAR[d]?.[y];
+    const pop = POP_DATA[d]?.[y]?.population || 1;
+    if (!dy || !pop) return null;
+    return { d, v: dy.living_waste / pop / 365 * 1000 };
+  }).filter(Boolean);
+  const maxPc = perCaps.reduce((a,b) => a.v > b.v ? a : b);
+  const minPc = perCaps.reduce((a,b) => a.v < b.v ? a : b);
+  document.getElementById('kpi12-gap').textContent = (maxPc.v / minPc.v).toFixed(1);
+  document.getElementById('kpi12-gap-sub').textContent = `최고: ${maxPc.d} ${maxPc.v.toFixed(2)}kg/일 | 최저: ${minPc.d} ${minPc.v.toFixed(2)}kg/일`;
+}
+
+async function drawMap12() {
+  const container = document.getElementById('map12');
+  if (!container) return;
+  const loading = document.getElementById('map12-loading');
+  const geo = window.SEOUL_GEO;
+  if (!geo) return;
+  loading.classList.add('hide');
+
+  if (!map12Instance) {
+    map12Instance = L.map('map12', {
+      zoomControl: true, scrollWheelZoom: false, attributionControl: true, zoomSnap: 0.5, minZoom: 10
+    }).setView([37.5665, 126.978], 10.5);
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/voyager_nolabels/{z}/{x}/{y}{r}.png', {
+      attribution: '© OSM © CARTO', maxZoom: 18, subdomains: 'abcd'
+    }).addTo(map12Instance);
+    setTimeout(() => map12Instance.invalidateSize(), 80);
+  }
+  if (map12Layer) { map12Layer.remove(); }
+  map12Labels.forEach(l => l.remove());
+  map12Labels = [];
+
+  const vals = DISTRICTS.map(d => getDistrictValue(d, selectedYear, selectedType, selectedMetric));
+  const mn = Math.min(...vals), mx = Math.max(...vals);
+
+  const getColor = d => {
+    const v = getDistrictValue(d, selectedYear, selectedType, selectedMetric);
+    const t = Math.pow((v - mn) / (mx - mn || 1), 0.55);
+    if (selectedMetric === 'percap') return colorAmber(t);
+    return colorGreen(t);
+  };
+
+  const grad = document.getElementById('map12-gradient');
+  if (selectedMetric === 'percap') grad.style.background = 'linear-gradient(to right,#fef3c7,#92400e)';
+  else grad.style.background = 'linear-gradient(to right,#d1fae5,#34d399)';
+
+  const metricLabel = selectedMetric === 'total' ? '톤/년' : 'kg/인일';
+  const typeLabel = selectedType;
+
+  map12Layer = L.geoJSON(geo, {
+    style: f => ({ fillColor: getColor(getDistName(f.properties)), fillOpacity: .72, color: 'rgba(255,255,255,.98)', weight: 2.8, opacity: 1 }),
+    onEachFeature: (feature, layer) => {
+      const name = getDistName(feature.properties);
+      const dy = DISTRICT_YEAR[name]?.[selectedYear];
+      const pop = POP_DATA[name]?.[selectedYear]?.population || 0;
+      if (!dy) return;
+      const totalV = getDistrictValue(name, selectedYear, selectedType, selectedMetric);
+      const fmtV = selectedMetric === 'total' ? `${fmt(totalV)} 톤/년` : `${(+totalV).toFixed(3)} kg/인일`;
+      layer.bindTooltip(`<strong>${name}</strong><br>${typeLabel} ${metricLabel === 'kg/인일' ? '1인당' : '총량'}: ${fmtV}<br>인구: ${fmt(pop)}명`,
+        { className: 'gu-tooltip', sticky: true, direction: 'top' });
+      layer.on('mouseover', e => e.target.setStyle({ weight: 3.6, color: 'rgba(51,65,85,.85)', fillOpacity: .9 }));
+      layer.on('mouseout', e => map12Layer.resetStyle(e.target));
+      layer.on('click', () => openSidePanel(name));
+
+      const center = layer.getBounds().getCenter();
+      const labelIcon = L.divIcon({ className: 'gu-label', html: name, iconSize: [52, 14], iconAnchor: [26, 7] });
+      const lm = L.marker(center, { icon: labelIcon, interactive: false }).addTo(map12Instance);
+      map12Labels.push(lm);
+    }
+  }).addTo(map12Instance);
+
+  const metricName = selectedMetric === 'total' ? '총량' : '1인당';
+  document.getElementById('map12-title').innerHTML = `자치구별 발생량 지도 (${typeLabel}·${metricName}) <span class="info-icon" data-tip="자치구별 폐기물 발생량을 색상으로 표현한 코로플레스 지도. 클릭 시 상세 패널이 열립니다.">ⓘ</span>`;
+}
+
+function renderTop5() {
+  const y = selectedYear;
+  const typeLabel = selectedType;
+  const byTotal = [...DISTRICTS].map(d => ({ d, v: getDistrictValue(d, y, selectedType, 'total') })).sort((a,b) => b.v - a.v).slice(0, 5);
+  const byPer = [...DISTRICTS].map(d => ({ d, v: getDistrictValue(d, y, selectedType, 'percap') })).sort((a,b) => b.v - a.v).slice(0, 5);
+
+  // Update titles
+  const leftTitleEl = document.getElementById('top5-left-title');
+  const rightTitleEl = document.getElementById('top5-right-title');
+  if (leftTitleEl) leftTitleEl.innerHTML = `총량 TOP 5 &nbsp;<span style="font-size:11px;font-weight:400;color:var(--text3)">(${typeLabel})</span>`;
+  if (rightTitleEl) rightTitleEl.innerHTML = `1인당 TOP 5 &nbsp;<span style="font-size:11px;font-weight:400;color:var(--text3)">(${typeLabel})</span>`;
+
+  const rankStyle = `display:flex;align-items:flex-start;padding:10px 0;border-bottom:1px solid var(--border);cursor:pointer;gap:10px;transition:background .12s`;
+  document.getElementById('top5-left').innerHTML = byTotal.map((x,i) =>
+    `<div onclick="openSidePanel('${x.d}')" style="${rankStyle}">
+      <span style="font-family:var(--mono);font-size:13px;font-weight:700;color:${i===0?'var(--green)':'var(--text3)'};min-width:18px">${i+1}</span>
+      <div style="flex:1">
+        <div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:2px">${x.d}</div>
+        <div style="font-family:var(--mono);font-size:12px;font-weight:600;color:${i===0?'var(--green)':'var(--text2)'}">${fmt(Math.round(x.v/100)*100).replace(/,/g,',')}톤</div>
+      </div>
+    </div>`).join('');
+  document.getElementById('top5-right').innerHTML = byPer.map((x,i) =>
+    `<div onclick="openSidePanel('${x.d}')" style="${rankStyle}">
+      <span style="font-family:var(--mono);font-size:13px;font-weight:700;color:${i===0?'var(--purple)':'var(--text3)'};min-width:18px">${i+1}</span>
+      <div style="flex:1">
+        <div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:2px">${x.d}</div>
+        <div style="font-family:var(--mono);font-size:12px;font-weight:600;color:${i===0?'var(--purple)':'var(--text2)'}">${(+x.v).toFixed(2)}kg/일</div>
+      </div>
+    </div>`).join('');
+}
+
+// 구성 차트 범례 필터 상태
+let compHiddenKeys = new Set();
+const COMP_COLORS = { household:'#34d399', biz_nonbiz:'#818cf8', industrial:'#fbbf24', construction:'#94a3b8', designated:'#f87171' };
+const COMP_LABELS = { household:'가정', biz_nonbiz:'사업장비배출', industrial:'사업장배출', construction:'건설', designated:'지정' };
+const COMP_TIPS = { household:'가정에서 발생하는 생활계 폐기물', biz_nonbiz:'소규모 사업장 등에서 발생하며 별도 배출시설이 없는 폐기물', industrial:'공장·제조업 등 법적으로 지정된 배출시설에서 발생하는 폐기물', construction:'건설/철거/토목 공사 폐기물', designated:'유해성으로 인해 별도 관리되는 폐기물' };
+const COMP_KEYS = ['household','biz_nonbiz','industrial','construction','designated'];
+
+function renderCompLegend() {
+  const el = document.getElementById('comp-legend');
+  if (!el) return;
+  const visibleCount = COMP_KEYS.filter(k => !compHiddenKeys.has(k)).length;
+  el.innerHTML = COMP_KEYS.map(k => {
+    const isHidden = compHiddenKeys.has(k);
+    const isLastVisible = !isHidden && visibleCount === 1;
+    return `<div onclick="${isLastVisible ? '' : `toggleCompKey('${k}')`}"
+      data-tip="${COMP_TIPS[k]}"
+      style="display:flex;align-items:center;gap:6px;padding:5px 10px;border-radius:20px;border:1px solid ${isHidden ? 'var(--border2)' : 'transparent'};background:${isHidden ? 'transparent' : COMP_COLORS[k]+'15'};cursor:${isLastVisible ? 'not-allowed' : 'pointer'};opacity:${isHidden ? 0.45 : 1};transition:all .2s;user-select:none">
+      <div style="width:10px;height:10px;border-radius:3px;background:${COMP_COLORS[k]};opacity:${isHidden?0.4:1}"></div>
+      <span style="font-size:11px;font-weight:500;color:${isHidden ? 'var(--text3)' : 'var(--text2)'}">${COMP_LABELS[k]}</span>
+    </div>`;
+  }).join('');
+}
+
+function toggleCompKey(key) {
+  const visibleCount = COMP_KEYS.filter(k => !compHiddenKeys.has(k)).length;
+  if (!compHiddenKeys.has(key)) {
+    if (visibleCount <= 1) return; // 최소 1개 유지
+    compHiddenKeys.add(key);
+  } else {
+    compHiddenKeys.delete(key);
+  }
+  renderCompLegend();
+  // Chart.js dataset visibility update (no destroy/recreate)
+  if (charts.composition) {
+    COMP_KEYS.forEach((k, i) => {
+      const meta = charts.composition.getDatasetMeta(i);
+      meta.hidden = compHiddenKeys.has(k);
+    });
+    charts.composition.update();
+  }
+}
+
+function renderCompositionChart() {
+  const y = selectedYear;
+  const sort = document.getElementById('comp-sort').value;
+  let districts = [...DISTRICTS];
+  if (sort === 'total') districts.sort((a,b) => (DISTRICT_YEAR[b]?.[y]?.total_waste||0) - (DISTRICT_YEAR[a]?.[y]?.total_waste||0));
+  else if (sort === 'percap') districts.sort((a,b) => { const pa = (DISTRICT_YEAR[a]?.[y]?.living_waste||0) / (POP_DATA[a]?.[y]?.population||1); const pb = (DISTRICT_YEAR[b]?.[y]?.living_waste||0) / (POP_DATA[b]?.[y]?.population||1); return pb - pa; });
+  else districts.sort();
+
+  const data = districts.map(d => {
+    const dy = DISTRICT_YEAR[d]?.[y];
+    if (!dy) return null;
+    const total = dy.total_waste || 1;
+    return { d, household: dy.household_waste/total*100, biz_nonbiz: dy.biz_nonbiz_waste/total*100, industrial: dy.industrial_waste/total*100, construction: dy.construction_waste/total*100, designated: dy.designated_waste/total*100 };
+  }).filter(Boolean);
+
+  if (charts.composition) {
+    // update data in place (avoid destroy for smooth transition)
+    charts.composition.data.labels = data.map(x => x.d);
+    COMP_KEYS.forEach((k, i) => {
+      charts.composition.data.datasets[i].data = data.map(x => +x[k].toFixed(1));
+      const meta = charts.composition.getDatasetMeta(i);
+      meta.hidden = compHiddenKeys.has(k);
+    });
+    charts.composition.update({ duration: 400, easing: 'easeInOutQuart' });
+    renderCompLegend();
+    return;
+  }
+
+  // 최초 생성
+  const ctx = document.getElementById('composition-chart').getContext('2d');
+  charts.composition = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: data.map(x => x.d),
+      datasets: COMP_KEYS.map(k => ({
+        label: COMP_LABELS[k],
+        data: data.map(x => +x[k].toFixed(1)),
+        backgroundColor: COMP_COLORS[k],
+        borderWidth: 0,
+        hidden: compHiddenKeys.has(k)
+      }))
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      animation: { duration: 400, easing: 'easeInOutQuart' },
+      plugins: {
+        legend: { display: false },
+        tooltip: { callbacks: { label: c => {
+          if (compHiddenKeys.has(COMP_KEYS[c.datasetIndex])) return null;
+          const d = data[c.dataIndex];
+          const dy = DISTRICT_YEAR[d.d]?.[y];
+          const key = COMP_KEYS[c.datasetIndex];
+          const keyMap = {household:'household_waste',biz_nonbiz:'biz_nonbiz_waste',industrial:'industrial_waste',construction:'construction_waste',designated:'designated_waste'};
+          const tons = fmt(dy?.[keyMap[key]] || 0);
+          return `${COMP_LABELS[key]}: ${c.parsed.y.toFixed(1)}% (${tons}톤/년)`;
+        } } }
+      },
+      scales: {
+        x: { stacked: true, grid: { display: false }, ticks: { color: '#3a4252', font: { size: 10 } } },
+        y: { stacked: true, min: 0, max: 100, ticks: { color: '#5a6478', font: { size: 9 }, callback: v => v+'%' }, grid: { color: 'rgba(0,0,0,.04)' } }
+      },
+      onClick: (e, elements) => { if (elements.length > 0) openSidePanel(data[elements[0].index].d); }
+    }
+  });
+  renderCompLegend();
+}
+
+// ══════════════════════════════════════════════════════
+//  1.3
+// ══════════════════════════════════════════════════════
+let divergMetric = 'recycle';
+
+function setDivergMetric(metric, el) {
+  divergMetric = metric;
+  document.querySelectorAll('#diverg-toggle .tgl').forEach(b => b.classList.remove('active'));
+  el.classList.add('active');
+  renderDivergingBar();
+}
+
+function init13() {
+  const ly = LATEST_YEAR;
+  const prevLY = ly - 1;
+
+  let totalRecycle = 0, totalIncineration = 0, totalLandfill = 0, totalWasteSum = 0;
+  DISTRICTS.forEach(d => {
+    const dy = DISTRICT_YEAR[d]?.[ly];
+    if (!dy) return;
+    totalRecycle += dy.total_recycle || 0;
+    totalIncineration += dy.total_incineration || 0;
+    totalLandfill += dy.total_landfill || 0;
+    totalWasteSum += dy.total_waste || 0;
+  });
+  const rr = totalWasteSum > 0 ? totalRecycle / totalWasteSum * 100 : 0;
+  const ir = totalWasteSum > 0 ? totalIncineration / totalWasteSum * 100 : 0;
+  const lr = totalWasteSum > 0 ? totalLandfill / totalWasteSum * 100 : 0;
+
+  let prevRecycle = 0, prevWasteSum = 0;
+  DISTRICTS.forEach(d => { const dy = DISTRICT_YEAR[d]?.[prevLY]; if (!dy) return; prevRecycle += dy.total_recycle || 0; prevWasteSum += dy.total_waste || 0; });
+  const prevRR = prevWasteSum > 0 ? prevRecycle / prevWasteSum * 100 : 0;
+  const change = rr - prevRR;
+
+  document.getElementById('kpi13-recycle').textContent = rr.toFixed(1);
+  document.getElementById('kpi13-recycle-sub').textContent = `${ly}년 기준 총폐기물`;
+  document.getElementById('kpi13-inc').textContent = ir.toFixed(1);
+  document.getElementById('kpi13-inc-sub').textContent = `${ly}년 기준 총폐기물`;
+  document.getElementById('kpi13-land').textContent = lr.toFixed(1);
+  document.getElementById('kpi13-land-sub').textContent = `${ly}년 기준 총폐기물`;
+
+  const sign = change >= 0 ? '+' : '';
+  document.getElementById('kpi13-change').textContent = sign + change.toFixed(1);
+  document.getElementById('kpi13-change').style.color = change >= 0 ? 'var(--green)' : 'var(--red)';
+  document.getElementById('kpi13-change-sub').textContent = `전년 대비 (${prevLY}→${ly})`;
+
+  drawTrend13();
+  renderProcessingChart();
+  renderDivergingBar();
+}
+
+function drawTrend13() {
+  const ctx = document.getElementById('trend13').getContext('2d');
+  const labels = YEARS.map(String);
+
+  const recycleData = YEARS.map(y => { let r=0,t=0; DISTRICTS.forEach(d=>{const dy=DISTRICT_YEAR[d]?.[y];if(dy){r+=dy.total_recycle||0;t+=dy.total_waste||0;}}); return t>0?+(r/t*100).toFixed(1):0; });
+  const incData = YEARS.map(y => { let r=0,t=0; DISTRICTS.forEach(d=>{const dy=DISTRICT_YEAR[d]?.[y];if(dy){r+=dy.total_incineration||0;t+=dy.total_waste||0;}}); return t>0?+(r/t*100).toFixed(1):0; });
+  const landData = YEARS.map(y => { let r=0,t=0; DISTRICTS.forEach(d=>{const dy=DISTRICT_YEAR[d]?.[y];if(dy){r+=dy.total_landfill||0;t+=dy.total_waste||0;}}); return t>0?+(r/t*100).toFixed(1):0; });
+
+  // 3-구간 비선형 스케일: 0~15% 확대, 15~75% 압축, 75~100% 확대
+  // display space: 0~30 → 0~15%, 30~60 → 15~75%, 60~100 → 75~100%
+  function toDisplay(v) {
+    if (v <= 15)  return v * (30 / 15);               // 0~15% → display 0~30
+    if (v <= 75)  return 30 + (v - 15) * (30 / 60);  // 15~75% → display 30~60
+    return 60 + (v - 75) * (40 / 25);                 // 75~100% → display 60~100
+  }
+  function fromDisplay(d) {
+    if (d <= 30)  return d * (15 / 30);
+    if (d <= 60)  return 15 + (d - 30) * (60 / 30);
+    return 75 + (d - 60) * (25 / 40);
+  }
+  const recycleDisp = recycleData.map(toDisplay);
+  const incDisp = incData.map(toDisplay);
+  const landDisp = landData.map(toDisplay);
+  const tickActual = [0, 5, 10, 15, 20, 30, 45, 60, 75, 85, 95, 100];
+  const tickDisp = tickActual.map(toDisplay);
+
+  const pointLabelsPlugin = {
+    id: 'pointLabels13',
+    afterDatasetsDraw(chart) {
+      const {ctx: c, data} = chart;
+      chart.data.datasets.forEach((ds, dsIdx) => {
+        const meta = chart.getDatasetMeta(dsIdx);
+        const actualVals = dsIdx===0?recycleData:dsIdx===1?incData:landData;
+        meta.data.forEach((point, i) => {
+          const val = actualVals[i];
+          c.save(); c.fillStyle=ds.borderColor; c.font=`bold 9px 'JetBrains Mono', monospace`; c.textAlign='center';
+          c.fillText(val.toFixed(1), point.x, point.y+(dsIdx===0?-10:12));
+          c.restore();
+        });
+      });
+    }
+  };
+
+  if (charts.trend13) charts.trend13.destroy();
+  charts.trend13 = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [
+        { label:'재활용', data:recycleDisp, borderColor:'#34d399', borderWidth:2.5, pointRadius:5, pointBackgroundColor:'#34d399', fill:false, tension:.3 },
+        { label:'소각',   data:incDisp,     borderColor:'#f87171', borderWidth:2,   pointRadius:4, pointBackgroundColor:'#f87171', fill:false, tension:.3 },
+        { label:'매립',   data:landDisp,    borderColor:'#a78bfa', borderWidth:2,   pointRadius:4, pointBackgroundColor:'#a78bfa', fill:false, tension:.3 }
+      ]
+    },
+    plugins: [pointLabelsPlugin],
+    options: {
+      responsive:true, maintainAspectRatio:false,
+      plugins: { legend:{ labels:{color:'#3a4252',font:{size:10},boxWidth:10,padding:10} }, tooltip:{enabled:false} },
+      scales: {
+        x: { grid:{display:false}, ticks:{color:'#5a6478',font:{size:10}} },
+        y: {
+          min:0, max:100, grid:{color:'rgba(0,0,0,.04)'},
+          ticks: { color:'#5a6478', font:{size:9,family:'JetBrains Mono'}, callback(dispVal) { let closest=null,minDist=Infinity; tickDisp.forEach((td,i)=>{const dist=Math.abs(td-dispVal);if(dist<minDist){minDist=dist;closest=tickActual[i];}}); if(minDist<2)return closest+'%'; return null; }, count:tickDisp.length },
+          afterBuildTicks(axis) { axis.ticks=tickDisp.map(v=>({value:v})); }
+        }
+      },
+      layout:{padding:{top:16,right:10}}
+    }
+  });
+}
+
+function renderProcessingChart() {
+  const ly = LATEST_YEAR;
+  const sort = document.getElementById('proc-sort').value;
+  const allData = [...DISTRICTS].map(d => {
+    const dy = DISTRICT_YEAR[d]?.[ly]; if (!dy) return null;
+    const rr=+(dy.total_recycle_rate*100).toFixed(1), ir=+(dy.total_incineration_rate*100).toFixed(1), lr=+(dy.total_landfill_rate*100).toFixed(1);
+    return { d, recycle:rr, inc:ir, land:lr, other:Math.max(0,+(100-rr-ir-lr).toFixed(1)) };
+  }).filter(Boolean);
+  allData.sort((a,b)=>sort==='recycle'?b.recycle-a.recycle:sort==='incineration'?b.inc-a.inc:b.land-a.land);
+
+  let numerator=0,denom=0;
+  DISTRICTS.forEach(d=>{const dy=DISTRICT_YEAR[d]?.[ly];if(!dy)return;if(sort==='recycle')numerator+=dy.total_recycle||0;else if(sort==='incineration')numerator+=dy.total_incineration||0;else numerator+=dy.total_landfill||0;denom+=dy.total_waste||0;});
+  const seoulAvgPct=denom>0?+(numerator/denom*100).toFixed(1):0;
+  const sortLabel=sort==='recycle'?'재활용률':sort==='incineration'?'소각 비중':'매립 비중';
+
+  let datasets;
+  const baseDatasets={recycle:{label:'재활용',key:'recycle',bg:'#a8c4f0'},inc:{label:'소각',key:'inc',bg:'#f4a6a6'},land:{label:'매립',key:'land',bg:'#c4a8f0'},other:{label:'기타',key:'other',bg:'#f5cc84'}};
+  if(sort==='recycle')datasets=['recycle','inc','land','other'];
+  else if(sort==='incineration')datasets=['inc','recycle','land','other'];
+  else datasets=['land','recycle','inc','other'];
+
+  const barH=36; const chartH=allData.length*barH+60;
+  document.getElementById('processing-chart-wrap').style.height=chartH+'px';
+
+  // Plugin: 막대 중앙에 % 값 표시
+  const stackLabelPlugin={id:'stackLabels',afterDatasetsDraw(chart){const{ctx:c}=chart;chart.data.datasets.forEach((ds,dsIdx)=>{const meta=chart.getDatasetMeta(dsIdx);if(meta.hidden)return;meta.data.forEach((bar,i)=>{const val=ds.data[i];if(val<5)return;const{x,y,width,height,base}=bar.getProps(['x','y','width','height','base'],true);const barW=Math.abs(x-base);if(barW<22)return;c.save();c.font=`bold 11px 'JetBrains Mono', monospace`;c.textAlign='center';c.textBaseline='middle';c.lineWidth=3;c.strokeStyle='rgba(0,0,0,0.35)';c.strokeText(val.toFixed(0)+'%',base+barW/2,y);c.fillStyle='#ffffff';c.fillText(val.toFixed(0)+'%',base+barW/2,y);c.restore();});});}};
+  // Plugin: 서울 평균 dashed line
+  const avgLinePlugin={id:'procAvgLine',afterDraw(chart){const{ctx:c,chartArea,scales}=chart;if(!chartArea)return;const xPx=scales.x.getPixelForValue(seoulAvgPct);c.save();c.beginPath();c.setLineDash([5,4]);c.strokeStyle='#1a2332';c.lineWidth=1.5;c.moveTo(xPx,chartArea.top);c.lineTo(xPx,chartArea.bottom);c.stroke();c.setLineDash([]);c.fillStyle='#1a2332';c.font=`600 9px 'JetBrains Mono', monospace`;c.textAlign='center';c.fillText(`서울 평균(${sortLabel}) ${seoulAvgPct}%`,xPx,chartArea.top-6);c.restore();}};
+
+  if(charts.processing)charts.processing.destroy();
+  const ctx=document.getElementById('processing-chart').getContext('2d');
+  charts.processing=new Chart(ctx,{
+    type:'bar',
+    data:{labels:allData.map(x=>x.d),datasets:datasets.map(k=>{const ds=baseDatasets[k];return{label:ds.label,data:allData.map(x=>x[ds.key]),backgroundColor:ds.bg,borderWidth:0,stack:'s1'};})},
+    plugins:[stackLabelPlugin,avgLinePlugin],
+    options:{
+      responsive:true,maintainAspectRatio:false,indexAxis:'y',animation:{duration:300},
+      plugins:{legend:{display:false},tooltip:{enabled:false}},
+      scales:{
+        x:{stacked:true,max:100,min:0,grid:{color:'rgba(0,0,0,.04)'},ticks:{display:false},title:{display:false}},
+        y:{stacked:true,grid:{display:false},ticks:{color:'#3a4252',font:{size:10}}}
+      },
+      layout:{padding:{top:20,right:4,bottom:0}},
+      onClick:(e,els)=>{if(els.length>0)openSidePanel(allData[els[0].index].d);}
+    }
+  });
+
+  // Draw sticky x-axis on separate canvas
+  requestAnimationFrame(() => {
+    const xCanvas = document.getElementById('proc-xaxis-canvas');
+    if (!xCanvas || !charts.processing) return;
+    const mainCanvas = document.getElementById('processing-chart');
+    const chartArea = charts.processing.chartArea;
+    if (!chartArea) return;
+    xCanvas.width = mainCanvas.width;
+    const xCtx = xCanvas.getContext('2d');
+    xCtx.clearRect(0, 0, xCanvas.width, xCanvas.height);
+    xCtx.strokeStyle = 'rgba(0,0,0,.15)';
+    xCtx.lineWidth = 1;
+    xCtx.beginPath();
+    xCtx.moveTo(chartArea.left, 0);
+    xCtx.lineTo(chartArea.right, 0);
+    xCtx.stroke();
+    const ticks = [0, 25, 50, 75, 100];
+    xCtx.fillStyle = '#5a6478';
+    xCtx.font = `9px 'JetBrains Mono', monospace`;
+    xCtx.textAlign = 'center';
+    xCtx.textBaseline = 'middle';
+    const scale = charts.processing.scales.x;
+    ticks.forEach(t => {
+      const xPx = scale.getPixelForValue(t);
+      xCtx.fillText(t + '%', xPx, 16);
+      xCtx.beginPath();
+      xCtx.strokeStyle = 'rgba(0,0,0,.1)';
+      xCtx.moveTo(xPx, 0);
+      xCtx.lineTo(xPx, 6);
+      xCtx.stroke();
+    });
+  });
+}
+
+function renderDivergingBar() {
+  const ly = LATEST_YEAR;
+  let numerator=0,denom=0;
+  DISTRICTS.forEach(d=>{const dy=DISTRICT_YEAR[d]?.[ly];if(!dy)return;if(divergMetric==='recycle')numerator+=dy.living_recycle||0;else if(divergMetric==='incineration')numerator+=dy.living_incineration||0;else numerator+=dy.living_landfill||0;denom+=dy.living_waste||0;});
+  const seoulAvg=denom>0?numerator/denom*100:0;
+  const metricLabel=divergMetric==='recycle'?'재활용률':divergMetric==='incineration'?'소각률':'매립률';
+  // 색상 고정: 평균 이상 → 초록, 평균 이하 → 빨강 (토글 무관)
+  const posColor='#34d399';
+  const negColor='#f87171';
+
+  const distData=[...DISTRICTS].map(d=>{
+    const dy=DISTRICT_YEAR[d]?.[ly];if(!dy)return null;
+    let val;if(divergMetric==='recycle')val=(dy.living_recycle||0)/(dy.living_waste||1)*100;else if(divergMetric==='incineration')val=(dy.living_incineration||0)/(dy.living_waste||1)*100;else val=(dy.living_landfill||0)/(dy.living_waste||1)*100;
+    return{d,rate:val,diff:val-seoulAvg};
+  }).filter(Boolean).sort((a,b)=>b.diff-a.diff);
+
+  const maxAbs=Math.max(...distData.map(x=>Math.abs(x.diff)),0.1);
+  const wrap=document.getElementById('diverging-bar');
+
+  // 모든 메트릭 통일: 상위 3 = 빨강(over), 하위 3 = 파랑(good)
+  const sortedAsc = [...distData].sort((a,b)=>a.diff-b.diff);
+  const top3 = distData.slice(0, 3);   // 가장 큰 양수 3개
+  const bot3 = sortedAsc.slice(0, 3);  // 가장 큰 음수 3개
+
+  wrap.innerHTML=`
+    <div style="font-size:11px;font-family:var(--mono);color:var(--text3);margin-bottom:12px;line-height:1.5">
+      <span style="font-weight:600;color:var(--text2)">${metricLabel} 비교</span> · 서울 평균 <strong style="color:var(--text)">${seoulAvg.toFixed(1)}%</strong>
+    </div>
+    <div style="display:grid;grid-template-columns:60px 1fr 60px;gap:10px;margin-bottom:8px;font-size:10px;font-family:var(--mono);color:var(--text3);padding:0 8px">
+      <div></div>
+      <div style="display:flex;justify-content:space-between">
+        <span>← 평균 이하</span>
+        <span>서울 평균</span>
+        <span>평균 이상 →</span>
+      </div>
+      <div></div>
+    </div>
+    ${distData.map(x=>{
+      const pct=Math.abs(x.diff)/maxAbs*48;
+      const isPos=x.diff>=0;
+      const valTxt=(x.diff>=0?'+':'')+x.diff.toFixed(1);
+      // top3 = 양수 큰 쪽 (빨강), bot3 = 음수 큰 쪽 (파랑)
+      let cls='normal';
+      if(top3.includes(x)) cls = 'over';
+      else if(bot3.includes(x)) cls = 'good';
+      const barStyle = isPos ? `left:50%;width:${pct}%` : `left:${50-pct}%;width:${pct}%`;
+      return `<div class="diag-row ${cls}" onclick="openSidePanel('${x.d}')">
+        <div class="diag-name">${x.d}</div>
+        <div class="diag-bar-area">
+          <div class="diag-zero"></div>
+          <div class="diag-fill ${cls}" style="${barStyle}"></div>
+        </div>
+        <div class="diag-val ${cls}">${valTxt}</div>
+      </div>`;
+    }).join('')}
+    <div style="margin-top:14px;display:flex;gap:18px;font-size:11px;color:#64748b;justify-content:center;flex-wrap:wrap">
+      <span style="display:flex;align-items:center;gap:6px"><span style="display:inline-block;width:18px;height:8px;border-radius:999px;background:linear-gradient(90deg,#fb7185,#f87171)"></span>상위 3개구</span>
+      <span style="display:flex;align-items:center;gap:6px"><span style="display:inline-block;width:18px;height:8px;border-radius:999px;background:linear-gradient(90deg,#d1d5db,#9ca3af)"></span>일반</span>
+      <span style="display:flex;align-items:center;gap:6px"><span style="display:inline-block;width:18px;height:8px;border-radius:999px;background:linear-gradient(90deg,#60a5fa,#818cf8)"></span>하위 3개구</span>
+    </div>`;
+}
+
+// ══════════════════════════════════════════════════════
+//  [변경 1, 2] SIDE PANEL — REDESIGNED
+// ══════════════════════════════════════════════════════
+
+// 만톤 단위 formatter: 10만 이상 → X.X만톤, 미만 → X천톤
+function fmtMan(ton) {
+  if (ton == null || isNaN(ton)) return '—';
+  if (ton >= 100000) {
+    const man = ton / 10000;
+    return man % 1 === 0 ? man.toFixed(0) + '만톤' : man.toFixed(1) + '만톤';
+  }
+  const cheon = Math.round(ton / 1000);
+  return cheon.toFixed(1).replace(/\.0$/,'') + '천톤';
+}
+
+function renderSidePanel(district) {
+  const y = selectedYear;
+  const ly = LATEST_YEAR;
+  const dy = DISTRICT_YEAR[district]?.[y];
+  const pop = POP_DATA[district]?.[y]?.population || 0;
+  if (!dy) return;
+
+  const totalWaste = dy.total_waste;
+  const perCapLiving = dy.living_waste / pop / 365 * 1000;
+
+  // Seoul avg per cap living
+  const seoulPop = Object.values(POP_DATA).reduce((s, dp) => s + (dp[y]?.population || 0), 0);
+  const seoulLiving = Object.values(DISTRICT_YEAR).reduce((s, d) => s + (d[y]?.living_waste || 0), 0);
+  const seoulPerCap = seoulLiving / seoulPop / 365 * 1000;
+  const pcDiff = perCapLiving - seoulPerCap;
+
+  // Rank by total waste
+  const totalRank = [...DISTRICTS].map(d => getDistrictValue(d, y, selectedType, 'total')).sort((a,b) => b-a).indexOf(getDistrictValue(district, y, selectedType, 'total')) + 1;
+
+  // Composition data
+  const compData = [
+    { label: '가정', key: 'household_waste', color: '#34d399', tip: '가정에서 발생하는 생활계 폐기물' },
+    { label: '사업장비배출', key: 'biz_nonbiz_waste', color: '#818cf8', tip: '소규모 사업장 등에서 발생하며 별도 배출시설이 없는 폐기물' },
+    { label: '사업장배출', key: 'industrial_waste', color: '#fbbf24', tip: '공장·제조업 등 법적으로 지정된 배출시설에서 발생하는 폐기물' },
+    { label: '건설', key: 'construction_waste', color: '#94a3b8', tip: '건설/철거/토목 공사 폐기물' },
+    { label: '지정', key: 'designated_waste', color: '#f87171', tip: '유해성으로 인해 별도 관리되는 폐기물' },
+  ].map(c => ({ ...c, val: dy[c.key] || 0, pct: ((dy[c.key] || 0) / totalWaste * 100) }));
+  const maxComp = compData.reduce((a,b) => a.pct > b.pct ? a : b);
+
+  // Processing
+  const totalRR = dy.total_recycle_rate * 100;
+  const totalIR = dy.total_incineration_rate * 100;
+  const totalLR = dy.total_landfill_rate * 100;
+  const livingRR = dy.recycle_rate * 100;
+  const livingIR = dy.incineration_rate * 100;
+  const livingLR = dy.landfill_rate * 100;
+
+  // Seoul avg living recycle rate (selected year aggregate)
+  let seoulLivingRecNum=0,seoulLivingDen=0;
+  DISTRICTS.forEach(d=>{const dd=DISTRICT_YEAR[d]?.[y];if(!dd)return;seoulLivingRecNum+=dd.living_recycle||0;seoulLivingDen+=dd.living_waste||0;});
+  const seoulLivingRRagg = seoulLivingDen>0 ? seoulLivingRecNum/seoulLivingDen*100 : 0;
+  const rrDiff = livingRR - seoulLivingRRagg;
+
+  // Recycle rank by living recycle rate (selected year)
+  const rrRank = [...DISTRICTS].map(d => ({ d, v: (DISTRICT_YEAR[d]?.[y]?.recycle_rate || 0) * 100 })).sort((a,b) => b.v - a.v).map(x => x.d).indexOf(district) + 1;
+
+  // Insight
+  let insight = '';
+  const livingPct = dy.household_waste/totalWaste*100 + dy.biz_nonbiz_waste/totalWaste*100;
+  const avgLivingPct = Object.values(DISTRICT_YEAR).map(d => { const dd=d[y]; if(!dd)return 0; return (dd.household_waste+dd.biz_nonbiz_waste)/dd.total_waste*100; }).reduce((s,v)=>s+v,0)/DISTRICTS.length;
+  if (livingPct > avgLivingPct + 10) insight = '생활계 폐기물 비중이 높은 자치구입니다.';
+  else if (dy.industrial_waste/totalWaste*100 > 10) insight = '사업장배출시설계 폐기물 비중이 높은 자치구입니다.';
+  else if (dy.construction_waste/totalWaste*100 > 70) insight = '건설폐기물 비중이 매우 높은 자치구입니다.';
+  else insight = `${y}년 서울 평균 대비 재활용률이 ${rrDiff >= 0 ? '높은' : '낮은'} 편입니다.`;
+  if (rrDiff >= 0 && !insight.includes('재활용률이 높은')) insight += ` 서울 평균 대비 재활용률이 높은 편입니다.`;
+
+  // Canvas id for donut
+  const donutId = 'sp-donut-' + Date.now();
+
+  const inner = document.getElementById('dock-panel-inner');
+  inner.innerHTML = `
+<div class="sp2-wrap">
+  <!-- Header -->
+  <div class="sp2-header">
+    <span class="sp2-title">${district}</span>
+    <button class="sp2-close" onclick="closeSidePanel()">✕</button>
+  </div>
+  <div class="sp2-year">기준연도 ${y}년 &nbsp;|&nbsp; 인구 ${fmt(pop)}명</div>
+  <div class="sp2-insight"><span class="sp2-insight-icon">💡</span><span>${insight}</span></div>
+
+  <!-- ─── 발생 현황 ─── -->
+  <div class="sp2-section">
+    <div class="sp2-section-title">🟢 발생 현황</div>
+
+    <!-- [변경 1] 4-column KPI row -->
+    <div class="sp2-kpi-grid">
+      <div class="sp2-kpi">
+        <div class="sp2-kpi-label">총 발생량<br>(총 폐기물)</div>
+        <div class="sp2-kpi-val" style="color:var(--green);font-size:16px">${fmtMan(totalWaste)}</div>
+        <span class="sp2-kpi-unit">톤/년</span>
+      </div>
+      <div class="sp2-kpi">
+        <div class="sp2-kpi-label">1인당 발생량<br>(생활계)</div>
+        <div class="sp2-kpi-val" style="color:var(--amber)">${perCapLiving.toFixed(2)}</div>
+        <span class="sp2-kpi-unit">kg/인·일</span>
+      </div>
+      <div class="sp2-kpi">
+        <div class="sp2-kpi-label">서울 평균<br>대비</div>
+        <div class="sp2-kpi-val" style="color:${pcDiff>=0?'var(--red)':'var(--green)'}">${pcDiff>=0?'+':''}${pcDiff.toFixed(2)}</div>
+        <span class="sp2-kpi-unit">kg/인·일</span>
+        <div><span class="sp2-kpi-tag ${pcDiff>=0?'above':'below'}">${pcDiff>=0?'평균 이상':'평균 이하'}</span></div>
+      </div>
+      <div class="sp2-kpi">
+        <div class="sp2-kpi-label" style="flex-direction:column;gap:2px;line-height:1.3;min-height:auto">
+          <span style="font-size:10px;font-weight:600;color:var(--text2);white-space:nowrap;display:block">발생량 순위</span>
+          <span style="font-size:9px;color:var(--text3);white-space:nowrap;display:block">(선택 유형 기준)</span>
+        </div>
+        <div class="sp2-kpi-val" style="color:var(--text)">${totalRank}</div>
+        <span class="sp2-kpi-unit">/ 25개 자치구</span>
+      </div>
+    </div>
+
+    <!-- [변경 1] Donut chart -->
+    <div style="font-size:12px;font-weight:600;color:var(--text);margin-bottom:10px">폐기물 유형 구성</div>
+    <div class="sp2-donut-wrap">
+      <div class="sp2-donut-canvas-wrap">
+        <canvas id="${donutId}" width="130" height="130"></canvas>
+        <div class="sp2-donut-center">
+          <div class="sp2-donut-center-label">${maxComp.label}</div>
+          <div class="sp2-donut-center-pct" style="color:${maxComp.color}">${maxComp.pct.toFixed(0)}%</div>
+          <div class="sp2-donut-center-sub">최대 비중</div>
+        </div>
+      </div>
+      <div class="sp2-donut-legend">
+        ${compData.map(c => `
+          <div class="sp2-donut-legend-row">
+            <div class="sp2-donut-dot" style="background:${c.color}"></div>
+            <span class="sp2-legend-name" data-tip="${c.tip}">${c.label}</span>
+            <span class="sp2-legend-pct">${c.pct.toFixed(1)}%</span>
+            <span class="sp2-legend-ton">(${fmtMan(c.val)})</span>
+          </div>`).join('')}
+      </div>
+    </div>
+  </div>
+
+  <!-- ─── 처리 현황 ─── -->
+  <div class="sp2-section">
+    <div class="sp2-section-title" style="display:flex;align-items:center">
+      ♻ 처리 현황
+      <span class="sp2-section-max-badge" style="background:var(--green-bg);color:var(--green);border:1px solid rgba(5,150,105,.2)">재활용 비중 최대</span>
+    </div>
+
+    <!-- [변경 2] 4-column KPI row -->
+    <div class="sp2-kpi-grid">
+      <div class="sp2-kpi">
+        <div class="sp2-kpi-label">재활용률<br>(총 폐기물)</div>
+        <div class="sp2-kpi-val" style="color:var(--green)">${totalRR.toFixed(1)}<span style="font-size:12px;font-weight:400">%</span></div>
+        <span class="sp2-kpi-unit">♻</span>
+      </div>
+      <div class="sp2-kpi">
+        <div class="sp2-kpi-label">생활계<br>재활용률</div>
+        <div class="sp2-kpi-val" style="color:var(--green)">${livingRR.toFixed(1)}<span style="font-size:12px;font-weight:400">%</span></div>
+        <span class="sp2-kpi-unit">♻</span>
+      </div>
+      <div class="sp2-kpi">
+        <div class="sp2-kpi-label">서울 평균<br>대비</div>
+        <div class="sp2-kpi-val" style="color:${rrDiff>=0?'var(--green)':'var(--red)'}">${rrDiff>=0?'+':''}${rrDiff.toFixed(1)}<span style="font-size:11px;font-weight:400">%p</span></div>
+        <div><span class="sp2-kpi-tag ${rrDiff>=0?'above':'below'}">${rrDiff>=0?'평균 이상':'평균 이하'}</span></div>
+      </div>
+      <div class="sp2-kpi">
+        <div class="sp2-kpi-label">재활용률<br>순위 (생활계)</div>
+        <div class="sp2-kpi-val" style="color:var(--text)">${rrRank}</div>
+        <span class="sp2-kpi-unit">/ 25개 자치구</span>
+      </div>
+    </div>
+
+    <!-- [변경 2] 처리 구조 요약: 3줄 horizontal bar -->
+    <div style="font-size:12px;font-weight:600;color:var(--text);margin-bottom:10px">
+      처리 구조 요약
+    </div>
+    <div class="sp2-proc-bars">
+      ${[
+        {l:'재활용', v:totalRR, c:'#34d399', ton:dy.total_recycle},
+        {l:'소각',   v:totalIR, c:'#ef4444', ton:dy.total_incineration},
+        {l:'매립',   v:totalLR, c:'#a78bfa', ton:dy.total_landfill}
+      ].map(s => `
+        <div class="sp2-proc-bar-row">
+          <div class="sp2-proc-bar-label">
+            <div class="dot" style="background:${s.c}"></div>
+            ${s.l}
+          </div>
+          <div class="sp2-proc-bar-track">
+            <div class="sp2-proc-bar-fill" style="width:${Math.min(s.v,100)}%;background:${s.c}">
+              <span>${s.v > 8 ? s.v.toFixed(1)+'%' : ''}</span>
+            </div>
+          </div>
+          <div class="sp2-proc-bar-meta">${s.v.toFixed(1)}% (${fmtMan(s.ton)})</div>
+        </div>`).join('')}
+    </div>
+  </div>
+</div>`;
+
+  // [변경 1] Render donut chart
+  if (sidePanelDonutChart) { sidePanelDonutChart.destroy(); sidePanelDonutChart = null; }
+  const donutCtx = document.getElementById(donutId);
+  if (donutCtx) {
+    sidePanelDonutChart = new Chart(donutCtx, {
+      type: 'doughnut',
+      data: {
+        labels: compData.map(c => c.label),
+        datasets: [{
+          data: compData.map(c => +c.pct.toFixed(1)),
+          backgroundColor: compData.map(c => c.color),
+          borderWidth: 2,
+          borderColor: '#ffffff',
+          hoverBorderWidth: 3,
+        }]
+      },
+      options: {
+        responsive: false,
+        cutout: '62%',
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            callbacks: {
+              label: c => ` ${c.label}: ${c.parsed.toFixed(1)}% (${fmt(Math.round(compData[c.dataIndex].val/1000))}천톤)`
+            }
+          }
+        },
+        animation: { duration: 400 }
+      }
+    });
+  }
+}
+
+// ══════════════════════════════════════════════════════
+//  INIT
+// ══════════════════════════════════════════════════════
+window.addEventListener('load', () => {
+  const rangeEl = document.getElementById('year-range');
+  rangeEl.max = YEARS.length - 1;
+  rangeEl.value = YEARS.length - 1;
+  document.getElementById('year-prev').disabled = false;
+  document.getElementById('year-next').disabled = true;
+
+  init11();
+  onSelectedYearChange();
+  init13();
+});
+window.addEventListener('resize', () => {
+  if (map12Instance) map12Instance.invalidateSize();
+});
+</script>
+
+<!-- iframe 모드 자동 주입 -->
+<style>
+  .tabs { display: none !important; }
+</style>
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    if (typeof sw === 'function') sw(0);
+    else if (typeof switchTab === 'function') switchTab(0);
+  });
+</script>
+
+<!-- Custom dropdown enhancer -->
+<script>
+(function(){
+  function initCS(sel){
+    if(!sel || sel.dataset.csInit) return;
+    sel.dataset.csInit='1';
+    sel.style.display='none';
+    const wrap=document.createElement('div');
+    wrap.className='cs-wrap';
+    if(sel.classList.contains('drop-sort')||sel.getAttribute('style')?.includes('width:auto'))wrap.classList.add('compact');
+    sel.parentNode.insertBefore(wrap,sel);
+    wrap.appendChild(sel);
+    const trigger=document.createElement('button');
+    trigger.type='button';
+    trigger.className='cs-trigger';
+    trigger.innerHTML='<span class="cs-text"></span><svg class="cs-arrow" width="12" height="8" viewBox="0 0 12 8" fill="none"><path stroke="#a78bfa" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M1 1l5 5 5-5"/></svg>';
+    wrap.appendChild(trigger);
+    const panel=document.createElement('div');
+    panel.className='cs-panel';
+    wrap.appendChild(panel);
+    function render(){
+      panel.innerHTML='';
+      Array.from(sel.options).forEach(opt=>{
+        const item=document.createElement('div');
+        item.className='cs-option'+(opt.value===sel.value?' active':'');
+        item.textContent=opt.text;
+        item.addEventListener('click',(e)=>{
+          e.stopPropagation();
+          sel.value=opt.value;
+          sel.dispatchEvent(new Event('change',{bubbles:true}));
+          close();
+          updateText();
+        });
+        panel.appendChild(item);
+      });
+    }
+    function updateText(){
+      const opt=sel.options[sel.selectedIndex];
+      trigger.querySelector('.cs-text').textContent=opt?opt.text:'선택하세요';
+    }
+    function open(){
+      document.querySelectorAll('.cs-panel.open').forEach(p=>p.classList.remove('open'));
+      document.querySelectorAll('.cs-trigger.open').forEach(t=>t.classList.remove('open'));
+      render();
+      panel.classList.add('open');
+      trigger.classList.add('open');
+    }
+    function close(){
+      panel.classList.remove('open');
+      trigger.classList.remove('open');
+    }
+    trigger.addEventListener('click',(e)=>{
+      e.stopPropagation();
+      if(panel.classList.contains('open'))close();
+      else open();
+    });
+    document.addEventListener('click',(e)=>{if(!wrap.contains(e.target))close();});
+    sel.addEventListener('change',updateText);
+    new MutationObserver(updateText).observe(sel,{childList:true,attributes:true,attributeFilter:['value']});
+    updateText();
+  }
+  function initAll(){document.querySelectorAll('select').forEach(initCS);}
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',initAll);
+  else initAll();
+  new MutationObserver(muts=>{
+    muts.forEach(m=>{
+      m.addedNodes.forEach(n=>{
+        if(n.nodeType!==1)return;
+        if(n.tagName==='SELECT')initCS(n);
+        if(n.querySelectorAll)n.querySelectorAll('select').forEach(initCS);
+      });
+    });
+  }).observe(document.body,{childList:true,subtree:true});
+})();
+</script>
+</body>
+</html>

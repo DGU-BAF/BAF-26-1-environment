@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>서울 폐기물 대시보드 — 통합</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#f4f2fa; --bg2:#ffffff; --bg3:#efebf7;
+  --border:rgba(124,58,237,.08); --border2:rgba(124,58,237,.18);
+  --text:#2a2440; --text2:#5e587a; --text3:#9189a8;
+  --green:#34d399; --amber:#fbbf24; --red:#f87171;
+  --teal:#10b981;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{height:100%;overflow:hidden}
+body{font-family:'Noto Sans KR',-apple-system,BlinkMacSystemFont,sans-serif;background:var(--bg);color:var(--text);display:flex;flex-direction:column}
+header{display:flex;align-items:center;gap:16px;padding:14px 24px;background:linear-gradient(135deg,#fbfaff,#ffffff);border-bottom:1px solid var(--border);flex-shrink:0;box-shadow:0 2px 8px rgba(124,58,237,.05)}
+.brand{font-size:20px;font-weight:700;color:var(--text);letter-spacing:-.5px;display:flex;align-items:center;gap:12px}
+.brand .mono{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text3);font-weight:500}
+.brand-logo{width:38px;height:38px;background:linear-gradient(135deg,#a78bfa,#818cf8);color:#fff;border-radius:11px;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0;box-shadow:0 4px 12px rgba(167,139,250,.25)}
+nav.tabs{display:flex;gap:6px;margin-left:auto}
+.tab{display:flex;align-items:center;gap:8px;padding:9px 18px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;cursor:pointer;font-size:14px;color:var(--text2);transition:all .15s;user-select:none;font-weight:500}
+.tab:hover{border-color:var(--border2);color:var(--text);background:#e8edf3}
+.tab .num{font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;letter-spacing:.04em;color:var(--text3);background:var(--bg2);border:1px solid var(--border);padding:2px 7px;border-radius:4px}
+.tab.active{color:var(--text);font-weight:600}
+.tab.green.active{border-color:var(--green);background:rgba(52,211,153,.12);color:var(--green)}
+.tab.green.active .num{color:#fff;background:var(--green);border-color:var(--green)}
+.tab.amber.active{border-color:var(--amber);background:rgba(251,191,36,.15);color:var(--amber)}
+.tab.amber.active .num{color:#fff;background:var(--amber);border-color:var(--amber)}
+.tab.red.active{border-color:var(--red);background:rgba(248,113,113,.12);color:var(--red)}
+.tab.red.active .num{color:#fff;background:var(--red);border-color:var(--red)}
+.frames{flex:1;position:relative;overflow:hidden}
+iframe{position:absolute;inset:0;width:100%;height:100%;border:0;background:var(--bg);display:none}
+iframe.active{display:block}
+</style>
+</head>
+<body>
+<header>
+  <div class="brand"><div class="brand-logo"><img src="icons/icons8-tree-48.png" alt="tree" width="22" height="22" style="filter:brightness(0) invert(1)"></div>서울시 자치구별 쓰레기 발생 구조 진단 대시보드</div>
+  <nav class="tabs">
+    <div class="tab green active" onclick="show(0)"><span class="num">CH.1</span>진단</div>
+    <div class="tab amber" onclick="show(1)"><span class="num">CH.2</span>분석</div>
+    <div class="tab red" onclick="show(2)"><span class="num">CH.3</span>처방</div>
+  </nav>
+</header>
+<div class="frames">
+  <iframe id="f0" class="active" src="ch1/ch1.html"></iframe>
+  <iframe id="f1" data-src="ch2/ch2.html"></iframe>
+  <iframe id="f2" data-src="ch3/ch3.html"></iframe>
+</div>
+<script>
+function show(i){
+  document.querySelectorAll('.tab').forEach(function(t,j){ t.classList.toggle('active', i===j); });
+  document.querySelectorAll('iframe').forEach(function(f,j){
+    f.classList.toggle('active', i===j);
+    /* lazy load: 처음 클릭 시점에 src 세팅 */
+    if (i===j && !f.src && f.dataset.src) { f.src = f.dataset.src; }
+  });
+}
+</script>
+</body>
+</html>
